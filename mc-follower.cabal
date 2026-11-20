@@ -67,6 +67,7 @@ library
     McFollower.BlockFile
     McFollower.EraHistory
     McFollower.Extract
+    McFollower.Query
     McFollower.Store
     McFollower.Store.Schema
     McFollower.Store.Sql
