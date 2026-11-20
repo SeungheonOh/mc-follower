@@ -59,3 +59,24 @@ library
     , stm
     , text
     , typed-protocols
+
+test-suite mc-follower-test
+  import:         warnings, lang
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Main.hs
+  ghc-options:    -threaded
+  other-modules:
+    Test.McFollower.Network
+    Test.McFollower.Pending
+    Test.McFollower.Points
+    Test.McFollower.Recent
+
+  build-depends:
+    , base
+    , bytestring
+    , mc-follower
+    , ouroboros-consensus
+    , ouroboros-network:{api, protocols}
+    , tasty
+    , tasty-hunit
