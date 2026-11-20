@@ -121,6 +121,13 @@ test-suite mc-follower-test
     Test.McFollower.Points
     Test.McFollower.Recent
 
+  -- Indexer tests.
+  other-modules:
+    Test.McFollower.Chain
+    Test.McFollower.Extract
+    Test.McFollower.Query
+    Test.McFollower.Store
+
   build-depends:
     , base
     , bytestring
@@ -130,3 +137,15 @@ test-suite mc-follower-test
     , tasty
     , tasty-hunit
 
+  -- Indexer tests.
+  build-depends:
+    , base16-bytestring
+    , cardano-crypto-class
+    , cardano-ledger-binary
+    , cardano-ledger-core
+    , cardano-ledger-mary
+    , cardano-slotting
+    , containers
+    , filepath
+    , temporary
+    , text
