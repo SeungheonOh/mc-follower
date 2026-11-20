@@ -6,7 +6,8 @@ import Test.McFollower.Pending qualified as Pending
 import Test.McFollower.Query qualified as Query
 import Test.McFollower.Store qualified as Store
 import Test.McFollower.Recent qualified as Recent
+import Test.McFollower.Server qualified as Server
 import Test.Tasty (defaultMain, testGroup)
 
 main :: IO ()
-main = defaultMain (testGroup "mc-follower" [Recent.tests, Pending.tests, Network.tests, Extract.tests, Store.tests, Query.tests])
+main = defaultMain (testGroup "mc-follower" [Recent.tests, Pending.tests, Network.tests, Extract.tests, Store.tests, Query.tests, Server.tests])

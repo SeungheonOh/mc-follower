@@ -179,3 +179,11 @@ test-suite mc-follower-test
     , filepath
     , temporary
     , text
+
+  -- gRPC server tests.
+  other-modules:  Test.McFollower.Server
+  build-depends:
+    , grapesy
+    , grpc-spec
+    , proto-lens
+    , transformers
