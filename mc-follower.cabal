@@ -6,7 +6,8 @@ description:
   Follows Cardano over node-to-node or node-to-client, indexes the data a
   Midnight node reads and serves it over gRPC.
 
-license:            Apache-2.0
+license:            BSD-3-Clause
+license-file:       LICENSE
 build-type:         Simple
 extra-doc-files:    README.md
 extra-source-files: data/epoch-nonces/*.csv

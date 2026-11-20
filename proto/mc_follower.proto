@@ -1,8 +1,15 @@
-// mc-follower gRPC contract (DRAFT).
+// Copyright (c) 2026, Seungheon Oh
+// SPDX-License-Identifier: BSD-3-Clause
 //
-// Target: midnight-node tag node-2.1.101, branch `mc-follower-data-source`.
-// Companion document: docs/CONTRACT.md (trait mapping, data-model semantics,
-// ambiguities). Design decisions: docs/SPEC.md.
+// mc-follower gRPC contract.
+//
+// The canonical copy of this file lives in the mc-follower repository
+// (https://github.com/SeungheonOh/mc-follower). Companion documents there:
+// docs/CONTRACT.md (trait mapping, data-model semantics) and docs/SPEC.md
+// (design decisions).
+//
+// Source references below are to midnight-node at tag node-2.1.101; line
+// numbers may have moved since.
 //
 // Every RPC except GetStatus replaces exactly one SQL query that a running
 // Midnight node executes against cardano-db-sync (GetBlockByHash replaces two
