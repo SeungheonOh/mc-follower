@@ -17,14 +17,26 @@ cardano-api) and can follow the chain two ways:
 
 ## Status
 
-Implemented so far: the block source for both modes and a smoke command that
-prints the chain as it is followed. The extractor, SQLite store, nonce
-driver, epoch data and gRPC server are still to come.
+Implemented so far: the block source for both modes, the extractor, the
+SQLite store with rollback, the sync loop (`mc-follower sync`) and the query
+layer behind every row RPC of [proto/mc_follower.proto](proto/mc_follower.proto).
+The nonce driver, epoch data (stake distribution, `max_tx_size`) and the gRPC
+server are still to come; the store already has their tables and a write API.
 
 | Module | Purpose |
 |---|---|
 | `McFollower.Block` | The `CardanoBlock StandardCrypto` type, per-era projections, point and hash rendering |
+| `McFollower.BlockFile` | Blocks as files in the consensus on-disk encoding (test fixtures) |
 | `McFollower.Network` | Network parameters and the mainnet, preprod and preview presets |
+| `McFollower.EraHistory` | Genesis parameters and the era history: slot to epoch and slot start time |
+| `McFollower.Address` | Address text exactly as db-sync stores it (bech32 / base58) |
+| `McFollower.WatchSet` | What is indexed per network (Midnight addresses, policies, metadata label), presets and start points |
+| `McFollower.Extract` | Pure function from a block to the rows to store, reproducing db-sync's representation |
+| `McFollower.Store` | SQLite index: open/create, apply a block, roll back, intersection points, per-epoch data |
+| `McFollower.Store.Schema` | The SQL schema and its version |
+| `McFollower.Store.Sql` | Thin direct-sqlite layer (prepared-statement cache, transactions) |
+| `McFollower.Query` | One function per row RPC of the proto, against a store snapshot |
+| `McFollower.Sync` | The sync loop: block source to extractor to store, with progress reporting |
 | `McFollower.BlockSource` | `ChainEvent`, the `BlockSource` interface, the reconnect loop |
 | `McFollower.BlockSource.ChainSync` | Pipelined chain-sync client shared by both modes |
 | `McFollower.BlockSource.N2N` | Node-to-node source: connection, block-fetch client, keep-alive |
@@ -52,12 +64,73 @@ directory. The project builds cardano-crypto-praos with
 is not needed.
 
 ```sh
+export PKG_CONFIG_PATH=$HOME/.local/blst/lib/pkgconfig   # where libblst.pc is
 cabal update
 cabal build all
 cabal test
 ```
 
 The first build compiles the whole Cardano dependency tree and takes a while.
+
+## Syncing the index
+
+`mc-follower sync` builds the index in an SQLite database and keeps it
+following the chain, from a relay (node-to-node) or a local node socket:
+
+```sh
+mc-follower sync --network NAME (--relay HOST:PORT | --socket PATH) --db PATH [--from origin|SLOT.HASH] [--blocks N]
+```
+
+- `--db`: the database file; created if missing. A database is bound to the
+  network and the watch set it was created with and refuses to open with
+  others, or with another schema version.
+- `--from`: where a new database starts; the first block indexed is the one
+  after this point. The default is the network's preset start point
+  (`McFollower.WatchSet.startPointPreset`), which precedes every watched
+  address and policy. Preview has one; mainnet and preprod have none yet, so
+  `--from` is required there. When resuming, the stored start point is used
+  and a different `--from` is refused.
+- `--blocks N`: stop after applying N blocks (for bounded runs).
+- `--relay` may be repeated; without it and without `--socket`, the
+  network's bootstrap relays are used.
+
+Restarting resumes from the stored chain: the tip, then blocks 1, 2, 4, 8,
+... below it, then the start point. Rollbacks reported by the upstream undo
+the affected blocks in one transaction; rollbacks deeper than the security
+parameter k are refused. Progress is written to stderr every 10 seconds:
+
+```text
+intersecting at 101876757.0dac7367…
+connecting to preview-node.play.dev.cardano.org:3001
+intersected at 101876757.0dac7367…, upstream tip 128546083/4876786/eb886ef2…
+rolled back to 101876757.0dac7367… (0 blocks undone)
+synced to slot 102107691 block 3956272 epoch 1181, upstream block 4876786; 7511 blocks, 2987 txs, 6 watched outputs in 10s
+synced to slot 102341615 block 3963972 epoch 1184, upstream block 4876787; 7700 blocks, 5237 txs, 34 watched outputs in 10s
+```
+
+What is indexed (`McFollower.WatchSet`): every block (hash, number, slot,
+epoch, time, transaction count) and transaction (hash, position); every
+output at a watched address (mapping validator, council, technical
+committee, committee candidates, bridge ICS and reserve) with all its assets;
+every output carrying a token of a watched policy (cNIGHT, council, technical
+committee, permissioned candidates, bridge token) at any address; spends of
+those outputs; the input lists of transactions creating committee-candidate
+outputs; every datum db-sync would put in its `datum` table (witness datums of
+valid transactions and inline datums of all outputs); and tx metadata under
+the bridge label 6500973.
+
+## Fixture tool
+
+`mc-follower fetch-blocks` follows the chain from a point and prints what
+each block contains (tags such as `invalid`, `collateral-return`,
+`inline-datum`, `witnessed-datum-hash`, `multi-asset`, `byron-address`,
+`metadata`, `ebb`). With `--out DIR` it saves blocks as files, optionally only
+those with a `--select`ed tag. The fixtures under `test/fixtures` were made
+with it:
+
+```sh
+mc-follower fetch-blocks --network preview --from SLOT.HASH --blocks 20000 --out DIR --select invalid
+```
 
 ## Smoke command
 

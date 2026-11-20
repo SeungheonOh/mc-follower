@@ -1,0 +1,147 @@
+{-# LANGUAGE RecordWildCards #-}
+
+-- | The sync loop: follow a 'BlockSource' from the store's intersection
+-- points, extract every block and apply it, and undo blocks on rollback.
+module McFollower.Sync
+  ( SyncConfig (..)
+  , SyncTrace (..)
+  , Progress (..)
+  , SyncStopped (..)
+  , runSync
+  ) where
+
+import Control.Exception (Exception, throwIO, try)
+import Control.Monad (when)
+import Control.Tracer (Tracer, traceWith)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import Data.Void (absurd)
+import Data.Word (Word64)
+import McFollower.Block (Block)
+import McFollower.BlockSource (BlockSource (..), ChainEvent (..))
+import McFollower.EraHistory (EraHistory)
+import McFollower.Extract (BlockRows (..), TxRows (..), extractBlock)
+import McFollower.Store (Store, applyBlock, intersectionPoints, rollBackTo)
+import McFollower.WatchSet (WatchFilter)
+import Ouroboros.Consensus.Block (Point, blockPoint)
+import Ouroboros.Consensus.HardFork.History (PastHorizonException)
+import Ouroboros.Network.Block (Tip (..), getTipBlockNo)
+import Cardano.Slotting.Block (BlockNo (..))
+import Cardano.Slotting.Slot (WithOrigin (..))
+
+data SyncConfig = SyncConfig
+  { scWatchFilter :: !WatchFilter
+  , scEraHistory :: !EraHistory
+  , scStopAfter :: !(Maybe Word64)
+  -- ^ Stop after applying this many blocks.
+  , scProgressEvery :: !NominalDiffTime
+  }
+
+-- | Counts since the previous progress report.
+data Progress = Progress
+  { pSlot :: !Word64
+  , pBlockNo :: !(Maybe Word64)
+  , pEpoch :: !Word64
+  , pUpstreamBlockNo :: !(Maybe Word64)
+  , pBlocks :: !Word64
+  , pTxs :: !Word64
+  , pOutputs :: !Word64
+  -- ^ Watched outputs.
+  , pSeconds :: !NominalDiffTime
+  }
+  deriving stock (Show)
+
+data SyncTrace
+  = TraceIntersecting ![Point Block]
+  | TraceRolledBack !(Point Block) !Int
+  -- ^ Blocks undone.
+  | TraceProgress !Progress
+  deriving stock (Show)
+
+data SyncStopped
+  = StoppedAfter !Word64
+  | SlotOutsideEraHistory !(Point Block) !PastHorizonException
+  deriving stock (Show)
+
+instance Exception SyncStopped
+
+data Counters = Counters
+  { cSince :: !UTCTime
+  , cLast :: !(Maybe BlockRows)
+  , cUpstream :: !(Maybe Word64)
+  , cBlocks :: !Word64
+  , cTxs :: !Word64
+  , cOutputs :: !Word64
+  , cTotal :: !Word64
+  }
+
+-- | Run until the source fails, the handler fails, or 'scStopAfter' blocks
+-- were applied (then returns normally).
+runSync :: Tracer IO SyncTrace -> SyncConfig -> BlockSource -> Store -> IO ()
+runSync tracer SyncConfig {..} source store = do
+  points <- intersectionPoints store
+  traceWith tracer (TraceIntersecting points)
+  now <- getCurrentTime
+  countersVar <- newIORef (Counters now Nothing Nothing 0 0 0 0)
+  let handler = \case
+        RollBackward point tip -> do
+          undone <- rollBackTo store point
+          traceWith tracer (TraceRolledBack point undone)
+          noteUpstream countersVar tip
+        RollForward blk tip -> do
+          rows <- either (throwIO . SlotOutsideEraHistory (blockPoint blk)) pure (extractBlock scWatchFilter scEraHistory blk)
+          applyBlock store rows
+          noteUpstream countersVar tip
+          total <- recordBlock countersVar rows
+          report countersVar False
+          when (Just total == scStopAfter) $ do
+            report countersVar True
+            throwIO (StoppedAfter total)
+  try (runBlockSource source points handler) >>= \case
+    Left (StoppedAfter _) -> pure ()
+    Left e -> throwIO e
+    Right v -> absurd v
+ where
+  noteUpstream var tip = do
+    c <- readIORef var
+    writeIORef var c {cUpstream = upstreamBlockNo tip}
+
+  recordBlock var rows@BlockRows {brTxs} = do
+    c@Counters {..} <- readIORef var
+    writeIORef
+      var
+      c
+        { cLast = Just rows
+        , cBlocks = cBlocks + 1
+        , cTxs = cTxs + fromIntegral (length brTxs)
+        , cOutputs = cOutputs + fromIntegral (sum (map (length . trOutputs) brTxs))
+        , cTotal = cTotal + 1
+        }
+    pure (cTotal + 1)
+
+  report :: IORef Counters -> Bool -> IO ()
+  report var force = do
+    now <- getCurrentTime
+    c@Counters {..} <- readIORef var
+    let elapsed = diffUTCTime now cSince
+    case cLast of
+      Just BlockRows {..}
+        | force || elapsed >= scProgressEvery -> do
+            traceWith tracer . TraceProgress $
+              Progress
+                { pSlot = brSlot
+                , pBlockNo = brNumber
+                , pEpoch = brEpoch
+                , pUpstreamBlockNo = cUpstream
+                , pBlocks = cBlocks
+                , pTxs = cTxs
+                , pOutputs = cOutputs
+                , pSeconds = elapsed
+                }
+            writeIORef var c {cSince = now, cBlocks = 0, cTxs = 0, cOutputs = 0}
+      _ -> pure ()
+
+upstreamBlockNo :: Tip Block -> Maybe Word64
+upstreamBlockNo tip = case getTipBlockNo tip of
+  Origin -> Nothing
+  At (BlockNo n) -> Just n

@@ -71,6 +71,7 @@ library
     McFollower.Store
     McFollower.Store.Schema
     McFollower.Store.Sql
+    McFollower.Sync
     McFollower.WatchSet
 
   build-depends:
@@ -102,6 +103,11 @@ executable mc-follower
     , optparse-applicative
     , ouroboros-consensus
     , text
+
+  -- Indexer commands.
+  build-depends:
+    , filepath
+    , ouroboros-network:api
 
 test-suite mc-follower-test
   import:         warnings, lang
