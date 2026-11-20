@@ -67,6 +67,9 @@ library
     McFollower.BlockFile
     McFollower.EraHistory
     McFollower.Extract
+    McFollower.Store
+    McFollower.Store.Schema
+    McFollower.Store.Sql
     McFollower.WatchSet
 
   build-depends:
@@ -81,6 +84,7 @@ library
     , cardano-ledger-mary
     , cardano-strict-containers
     , cborg
+    , direct-sqlite
     , sop-extras
     , time
 
