@@ -64,14 +64,23 @@ library
   -- Indexer: extractor, store, sync loop and queries.
   exposed-modules:
     McFollower.Address
+    McFollower.BlockFile
     McFollower.EraHistory
+    McFollower.Extract
     McFollower.WatchSet
 
   build-depends:
     , base58-bytestring
     , bech32
+    , cardano-binary
     , cardano-crypto-class
+    , cardano-crypto-wrapper
+    , cardano-ledger-alonzo
+    , cardano-ledger-babbage
+    , cardano-ledger-binary
     , cardano-ledger-mary
+    , cardano-strict-containers
+    , cborg
     , sop-extras
     , time
 
