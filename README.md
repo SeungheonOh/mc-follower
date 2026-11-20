@@ -183,6 +183,24 @@ the tip, the immutable tip (tip - k), k, the start block, the network magic,
 the upstream tip and whether the indexer is behind it (`syncing`; always
 false with `--no-sync`); `backfilling` is always empty for now.
 
+### Checking against the node's client
+
+`test/rust-client` is a small Cargo project that calls every row-source
+method of midnight-node's mc-follower client crate
+(`midnight-primitives-mc-follower`, from a midnight-node checkout next to
+this repository) against a running `mc-follower serve` for preview, and
+prints the rows; `compare.py` recomputes the same rows from the SQLite
+database and diffs them:
+
+```sh
+mc-follower sync --network preview --from SLOT.HASH --db preview.db --blocks 17000
+mc-follower serve --network preview --no-sync --db preview.db &
+cd test/rust-client
+SQLX_OFFLINE=true cargo build -j4    # first build compiles much of the Substrate tree
+./target/debug/mc-follower-rust-client-check http://127.0.0.1:50051 > out.txt
+python3 -I compare.py ../../preview.db out.txt
+```
+
 ## Fixture tool
 
 `mc-follower fetch-blocks` follows the chain from a point and prints what

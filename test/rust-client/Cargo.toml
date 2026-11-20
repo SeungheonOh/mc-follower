@@ -1,0 +1,27 @@
+# Calls every row-source method of midnight-node's mc-follower client crate
+# against a running `mc-follower serve`, and prints the rows. A check of the
+# server against its real consumer; not part of the Haskell build.
+[package]
+name = "mc-follower-rust-client-check"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Keep this project out of any workspace above it.
+[workspace]
+
+[dependencies]
+cardano-serialization-lib = { version = "15.0.3", default-features = false, features = ["arbitrary-precision-json"] }
+chrono = "0.4.31"
+hex = "0.4.3"
+tokio = { version = "1.52.2", features = ["macros", "rt-multi-thread"] }
+
+# The client and the row types, from a midnight-node checkout next to this
+# repository (branch mc-follower-data-source).
+db-sync-sqlx = { path = "../../../midnight-node/partner-chains/toolkit/utils/db-sync-sqlx" }
+midnight-primitives-cnight-observation = { path = "../../../midnight-node/primitives/cnight-observation", features = ["std"] }
+midnight-primitives-mainchain-follower = { path = "../../../midnight-node/primitives/mainchain-follower", features = ["std"] }
+midnight-primitives-mc-follower = { path = "../../../midnight-node/primitives/mc-follower" }
+partner-chains-db-sync-data-sources = { path = "../../../midnight-node/partner-chains/toolkit/data-sources/db-sync", default-features = false, features = ["block-source", "bridge"] }
+sidechain-domain = { path = "../../../midnight-node/partner-chains/toolkit/sidechain/domain", features = ["std"] }
+
