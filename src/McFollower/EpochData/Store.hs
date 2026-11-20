@@ -15,11 +15,15 @@
 -- complete ones are served) and, in node-to-client mode, per-epoch
 -- @maxTxSize@ read from the node.
 --
--- 'applyChainEvent' is the glue between a block source and the store.
+-- 'applyChainEvent' is the glue between a block source and the store, and
+-- 'epochNonce' what @GetEpochNonce@ serves (shipped table, then driver;
+-- see "McFollower.EpochNonceTable").
 module McFollower.EpochData.Store
   ( EpochDataStore (..)
+  , EpochDataError (..)
   , applyChainEvent
   , recordStart
+  , epochNonce
 
     -- * In memory
   , InMemoryEpochData (..)
@@ -40,6 +44,13 @@ import McFollower.Block (Block)
 import McFollower.BlockSource (ChainEvent (..))
 import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..))
 import McFollower.EpochData.Stake (EpochStake (..), PoolStake)
+import McFollower.EpochNonceTable
+  ( EpochNonceLookup
+  , NonceConflict
+  , NonceTable
+  , checkAgainstTable
+  , lookupEpochNonce
+  )
 import McFollower.Nonce
   ( Checkpoint (..)
   , EpochNonce (..)
@@ -68,40 +79,65 @@ data EpochDataStore m = EpochDataStore
   , loadCheckpoints :: m [Checkpoint]
   -- ^ The kept checkpoints, oldest first.
   , loadEpochNonce :: EpochNo -> m (Maybe Nonce)
+  -- ^ The driver's nonce for the epoch, 'Nothing' if it has produced none
+  -- ('NeutralNonce' is a value like any other). Serve through
+  -- 'epochNonce', which consults the shipped table first.
   , loadStake :: EpochNo -> m (Maybe PoolStake)
   -- ^ Only a complete distribution.
   , loadSightings :: m [MaxTxSizeSighting]
   , loadMaxTxSize :: EpochNo -> m (Maybe Word32)
   }
 
+-- | Why feeding the store failed.
+data EpochDataError
+  = DriverError !NonceError
+  | TableConflict !NonceConflict
+  -- ^ The driver produced a nonce for an epoch the shipped table covers,
+  -- and the two differ. Either the starting state or the table is wrong;
+  -- nothing is recorded for the block.
+  deriving stock (Show)
+
 -- | Record the trusted starting state: its checkpoint, with the epoch
--- nonce of the epoch it is in.
-recordStart :: Monad m => EpochDataStore m -> NonceDriver -> m (Either NonceError ())
-recordStart store driver = case currentEpochNonce driver of
-  Left e -> pure (Left e)
-  Right en -> Right <$> storeCheckpoint store ((driverTip driver) {cpNewEpochNonce = Just en})
+-- nonce of the epoch it is in (checked against the table).
+recordStart :: Monad m => NonceTable -> EpochDataStore m -> NonceDriver -> m (Either EpochDataError ())
+recordStart table store driver = case currentEpochNonce driver of
+  Left e -> pure (Left (DriverError e))
+  Right en -> case checkAgainstTable table en of
+    Left c -> pure (Left (TableConflict c))
+    Right () -> Right <$> storeCheckpoint store ((driverTip driver) {cpNewEpochNonce = Just en})
 
 -- | Feed one chain event to the nonce driver and record what it produced.
 -- The sightings of a forward block are passed in by the caller (they need
 -- the block body and its epoch, see 'McFollower.EpochData.MaxTxSize.scanBlock').
+-- An epoch nonce the table also has must equal the table's.
 applyChainEvent
   :: Monad m
-  => EpochDataStore m
+  => NonceTable
+  -> EpochDataStore m
   -> ChainEvent Block (Header Block, [MaxTxSizeSighting])
   -> NonceDriver
-  -> m (Either NonceError NonceDriver)
-applyChainEvent store event driver = case event of
+  -> m (Either EpochDataError NonceDriver)
+applyChainEvent table store event driver = case event of
   RollForward (hdr, sightings) _ -> case applyHeader hdr driver of
-    Left e -> pure (Left e)
-    Right (driver', cp) -> do
-      storeCheckpoint store cp
-      storeSightings store sightings
-      pure (Right driver')
+    Left e -> pure (Left (DriverError e))
+    Right (driver', cp) -> case traverse (checkAgainstTable table) (cpNewEpochNonce cp) of
+      Left c -> pure (Left (TableConflict c))
+      Right _ -> do
+        storeCheckpoint store cp
+        storeSightings store sightings
+        pure (Right driver')
   RollBackward p _ -> case rollBackTo p driver of
-    Left e -> pure (Left e)
+    Left e -> pure (Left (DriverError e))
     Right (driver', _) -> do
       storeRollBack store p
       pure (Right driver')
+
+-- | The nonce to serve for an epoch: the shipped table up to its end, the
+-- driver's stored nonces after it ('lookupEpochNonce').
+epochNonce :: Monad m => NonceTable -> EpochDataStore m -> EpochNo -> m (Either NonceConflict EpochNonceLookup)
+epochNonce table store epoch = do
+  fromDriver <- loadEpochNonce store epoch
+  pure (lookupEpochNonce table fromDriver epoch)
 
 -- | Everything an in-memory store holds.
 data InMemoryEpochData = InMemoryEpochData

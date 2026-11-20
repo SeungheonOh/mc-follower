@@ -9,6 +9,7 @@ description:
 license:            Apache-2.0
 build-type:         Simple
 extra-doc-files:    README.md
+extra-source-files: data/epoch-nonces/*.csv
 
 common warnings
   ghc-options:
@@ -43,6 +44,7 @@ library
     McFollower.EpochData.Mithril
     McFollower.EpochData.Stake
     McFollower.EpochData.Store
+    McFollower.EpochNonceTable
     McFollower.EraHistory
     McFollower.Nonce
     McFollower.Nonce.TrustedState
@@ -79,6 +81,7 @@ library
     , cardano-ledger-shelley
     , cardano-protocol-tpraos
     , cborg
+    , file-embed
     , http-client
     , http-client-tls
     , http-types
@@ -116,6 +119,7 @@ test-suite mc-follower-test
     Test.McFollower.Recent
     -- Epoch nonce and epoch data
     Test.McFollower.EpochData
+    Test.McFollower.EpochNonceTable
     Test.McFollower.Fixtures
     Test.McFollower.Nonce
 

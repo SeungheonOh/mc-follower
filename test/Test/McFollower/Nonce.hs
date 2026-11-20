@@ -16,12 +16,14 @@ import Data.Map.Strict qualified as Map
 import McFollower.Block (Block, Era (..), parsePoint)
 import McFollower.BlockSource (ChainEvent (..))
 import McFollower.EpochData.Store
-  ( EpochDataStore (..)
+  ( EpochDataError (..)
+  , EpochDataStore (..)
   , InMemoryEpochData (..)
   , applyChainEvent
   , newInMemoryStore
   , recordStart
   )
+import McFollower.EpochNonceTable (NonceConflict (..), NonceTable (..))
 import McFollower.EraHistory
   ( EraHistoryError (..)
   , PraosEra (..)
@@ -199,13 +201,13 @@ driverTests =
   , testCase "the in-memory store follows forward and backward events" $ do
       blocks <- loadBlocks boundaryBlocksFile
       (store, contents) <- newInMemoryStore 433
-      _ <- expectRight =<< recordStart store previewDriver
+      _ <- expectRight =<< recordStart noTable store previewDriver
       let tip = TipGenesis
-          forward d b = expectRight =<< applyChainEvent store (RollForward (getHeader b, []) tip) d
+          forward d b = expectRight =<< applyChainEvent noTable store (RollForward (getHeader b, []) tip) d
       d <- foldM forward previewDriver blocks
       loadEpochNonce store (EpochNo 1486) >>= (@?= Just (mkNonceFromNumber 3))
       loadEpochNonce store (EpochNo 1487) >>= (@?= Just (mkNonceFromNumber 2 ⭒ mkNonceFromNumber 6))
-      _ <- expectRight =<< applyChainEvent store (RollBackward (blockPoint (blocks !! 1)) tip) d
+      _ <- expectRight =<< applyChainEvent noTable store (RollBackward (blockPoint (blocks !! 1)) tip) d
       loadEpochNonce store (EpochNo 1487) >>= (@?= Nothing)
       Map.keys . imEpochNonces <$> contents >>= (@?= [EpochNo 1486])
       map cpPoint <$> loadCheckpoints store >>= (@?= [startPoint, blockPoint (blocks !! 0), blockPoint (blocks !! 1)])
@@ -222,6 +224,21 @@ driverTests =
         @?= Diverge (cpPoint cp) [CandidateNonce (praosStateCandidateNonce (cpState cp)) (mkNonceFromNumber 9)]
       crossCheck (cpPoint (cps !! 2)) node (fst (either (error . show) id (rollBackTo startPoint d)))
         @?= NotInWindow (cpPoint (cps !! 2))
+  , testCase "a driver nonce that differs from the table's is a hard error" $ do
+      blocks <- loadBlocks boundaryBlocksFile
+      (store, contents) <- newInMemoryStore 433
+      let table = NonceTable (EpochNo 1487) (EpochNo 1487) (Map.singleton (EpochNo 1487) (mkNonceFromNumber 42))
+          tip = TipGenesis
+          forward d b = applyChainEvent table store (RollForward (getHeader b, []) tip) d
+      d3 <- foldM (\d b -> expectRight =<< forward d b) previewDriver (take 3 blocks)
+      forward d3 (blocks !! 3) >>= \case
+        Left (TableConflict c) -> c @?= NonceConflict (EpochNo 1487) (mkNonceFromNumber 42) (mkNonceFromNumber 2 ⭒ mkNonceFromNumber 6)
+        Left e -> assertFailure (show e)
+        Right _ -> assertFailure "conflicting nonce accepted"
+      -- Nothing was recorded for the rejected block.
+      length . imCheckpoints <$> contents >>= (@?= 3)
   ]
  where
   expectNonce t = either error id (hexNonce t)
+  -- A table that covers none of the recorded epochs.
+  noTable = NonceTable (EpochNo 0) (EpochNo 0) (Map.singleton (EpochNo 0) (mkNonceFromNumber 0))
