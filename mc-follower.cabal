@@ -134,6 +134,11 @@ executable mc-follower
     , filepath
     , ouroboros-network:api
 
+  -- serve command.
+  build-depends:
+    , directory
+    , network
+
 test-suite mc-follower-test
   import:         warnings, lang
   type:           exitcode-stdio-1.0

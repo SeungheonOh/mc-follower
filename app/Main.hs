@@ -1,17 +1,19 @@
 {-# LANGUAGE RecordWildCards #-}
 
--- | Command-line entry point: @sync@ builds and follows the index; the other
+-- | Command-line entry point: @sync@ builds and follows the index, @serve@
+-- does the same while serving it over gRPC (or only serves it); the other
 -- commands are smoke and fixture tools for the block source.
 module Main (main) where
 
 import Cardano.Slotting.Block (BlockNo (..))
 import Cardano.Slotting.Slot (SlotNo (..))
 import Cardano.Slotting.Time (SystemStart (..))
-import Control.Exception (Exception, throwIO, try)
-import Control.Monad (when)
+import Control.Concurrent (threadDelay)
+import Control.Exception (AsyncException (..), Exception, throwIO, try)
+import Control.Monad (forever, when)
 import Control.Tracer (Tracer (..), emit)
 import Data.Foldable (for_)
-import Data.IORef (atomicModifyIORef', newIORef)
+import Data.IORef (atomicModifyIORef', atomicWriteIORef, newIORef, readIORef)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -50,19 +52,24 @@ import McFollower.Network
   , parseNetworkName
   , parseRelayAddress
   )
-import McFollower.Store (StoreIdentity (..), getStartPoint, setStartPoint, withStore)
-import McFollower.Sync (Progress (..), SyncConfig (..), SyncTrace (..), runSync)
-import McFollower.WatchSet (renderWatchConfig, startPointPreset, watchFilter, watchPreset)
+import McFollower.Server (ServerConfig (..), SyncStatus (..), interruptOnTerminate, notFollowing, withServer)
+import McFollower.Store (Store, StoreError, StoreIdentity (..), checkIdentity, closeStore, getStartPoint, openStoreReadOnly, setStartPoint, withStore)
+import McFollower.Sync (Progress (..), SyncConfig (..), SyncTrace (..), UpstreamTip, runSync)
+import McFollower.WatchSet (WatchConfig, WatchFilter, renderWatchConfig, startPointPreset, watchFilter, watchPreset)
+import Network.Socket (HostName, PortNumber)
 import Options.Applicative
 import Ouroboros.Consensus.Block (Point, blockHash, blockNo, blockPoint, blockPrevHash, blockSlot)
 import Ouroboros.Network.Magic (NetworkMagic (..))
 import Data.Word (Word64)
+import System.Directory (doesFileExist)
 import System.Exit (die, exitFailure)
 import System.FilePath ((</>))
 import System.IO (BufferMode (..), hPutStrLn, hSetBuffering, stderr, stdout)
+import Text.Read (readMaybe)
 
 data Command
   = Sync !SyncOptions
+  | Serve !ServeOptions
   | Follow !FollowOptions
   | FetchBlocks !FetchOptions
   | SystemStartQuery !QueryOptions
@@ -89,6 +96,15 @@ data SyncOptions = SyncOptions
   , soLimit :: !(Maybe Word64)
   }
 
+data ServeOptions = ServeOptions
+  { svoNetwork :: !NetworkName
+  , svoUpstream :: !(Maybe Upstream)
+  -- ^ 'Nothing': serve the database without syncing it.
+  , svoDatabase :: !FilePath
+  , svoStart :: !(Maybe (Point Block))
+  , svoListen :: !(HostName, PortNumber)
+  }
+
 data FetchOptions = FetchOptions
   { fetchNetwork :: !NetworkName
   , fetchUpstream :: !Upstream
@@ -110,6 +126,7 @@ main = do
   cmd <- execParser (info (commandParser <**> helper) (fullDesc <> progDesc "Cardano indexer for Midnight"))
   case cmd of
     Sync opts -> sync opts
+    Serve opts -> serve opts
     Follow opts -> follow opts
     FetchBlocks opts -> fetchBlocks opts
     SystemStartQuery opts -> systemStart opts
@@ -126,34 +143,103 @@ blockSource cfg = \case
 
 sync :: SyncOptions -> IO ()
 sync SyncOptions {soNetwork, soUpstream, soDatabase, soStart, soLimit} = do
-  let cfg = networkConfig soNetwork
-      watch = watchPreset soNetwork
-      identity =
-        StoreIdentity
-          { siNetworkMagic = unNetworkMagic (ncMagic cfg)
-          , siWatchSet = renderWatchConfig watch
-          , siSecurityParam = gpSecurityParam (genesisParams soNetwork)
-          }
+  let (identity, watch) = storeIdentity soNetwork
   wf <- either (die . ("invalid watch set: " <>)) pure (watchFilter watch)
   withStore soDatabase identity $ \store -> do
-    stored <- getStartPoint store
-    case (stored, soStart <|> startPointPreset soNetwork) of
-      (Nothing, Nothing) ->
-        die ("no start point is known for " <> show soNetwork <> "; pass --from")
-      (Nothing, Just start) -> setStartPoint store start
-      (Just _, Just start) | Just _ <- soStart -> setStartPoint store start
-      (Just _, _) -> pure ()
-    runSync
-      (Tracer (emit (hPutStrLn stderr . Text.unpack . renderSyncTrace)))
-      SyncConfig
-        { scWatchFilter = wf
-        , scEraHistory = eraHistory soNetwork
-        , scStopAfter = soLimit
-        , scProgressEvery = 10
-        , scOnUpstreamTip = \_ -> pure ()
-        }
-      (blockSource cfg soUpstream)
-      store
+    prepareStart soNetwork soStart store
+    runSync syncTracer (syncConfig soNetwork wf soLimit (\_ -> pure ())) (blockSource (networkConfig soNetwork) soUpstream) store
+
+-- | The identity a database of a network is created with and checked
+-- against, and the network's watch set.
+storeIdentity :: NetworkName -> (StoreIdentity, WatchConfig)
+storeIdentity network =
+  ( StoreIdentity
+      { siNetworkMagic = unNetworkMagic (ncMagic (networkConfig network))
+      , siWatchSet = renderWatchConfig watch
+      , siSecurityParam = gpSecurityParam (genesisParams network)
+      }
+  , watch
+  )
+ where
+  watch = watchPreset network
+
+-- | Record the start point of a new database; check it when resuming.
+prepareStart :: NetworkName -> Maybe (Point Block) -> Store -> IO ()
+prepareStart network from store = do
+  stored <- getStartPoint store
+  case (stored, from <|> startPointPreset network) of
+    (Nothing, Nothing) ->
+      die ("no start point is known for " <> show network <> "; pass --from")
+    (Nothing, Just start) -> setStartPoint store start
+    (Just _, Just start) | Just _ <- from -> setStartPoint store start
+    (Just _, _) -> pure ()
+
+syncConfig :: NetworkName -> WatchFilter -> Maybe Word64 -> (Maybe UpstreamTip -> IO ()) -> SyncConfig
+syncConfig network wf limit onTip =
+  SyncConfig
+    { scWatchFilter = wf
+    , scEraHistory = eraHistory network
+    , scStopAfter = limit
+    , scProgressEvery = 10
+    , scOnUpstreamTip = onTip
+    }
+
+syncTracer :: Tracer IO SyncTrace
+syncTracer = Tracer (emit (hPutStrLn stderr . Text.unpack . renderSyncTrace))
+
+-- | Serve the index over gRPC, following the chain in the same process
+-- unless @--no-sync@ is given. SIGINT and SIGTERM stop both; a block being
+-- applied is rolled back, never half written.
+serve :: ServeOptions -> IO ()
+serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = (host, port)} = do
+  interruptOnTerminate
+  let (identity, watch) = storeIdentity svoNetwork
+      server status =
+        ServerConfig
+          { svHost = host
+          , svPort = port
+          , svDatabase = svoDatabase
+          , svIdentity = identity
+          , svWatch = watch
+          , svConnections = 16
+          , svSyncStatus = status
+          , svLog = hPutStrLn stderr . Text.unpack
+          }
+      listening bound = hPutStrLn stderr ("serving gRPC on " <> host <> ":" <> show bound)
+  stopped <- try $ case svoUpstream of
+    Nothing -> do
+      checkExisting identity
+      withServer (server (pure notFollowing)) $ \bound -> do
+        listening bound
+        forever (threadDelay maxBound)
+    Just upstream -> do
+      wf <- either (die . ("invalid watch set: " <>)) pure (watchFilter watch)
+      withStore svoDatabase identity $ \store -> do
+        prepareStart svoNetwork svoStart store
+        upstreamTip <- newIORef Nothing
+        let status = SyncStatus True <$> readIORef upstreamTip
+        withServer (server status) $ \bound -> do
+          listening bound
+          runSync
+            syncTracer
+            (syncConfig svoNetwork wf Nothing (atomicWriteIORef upstreamTip))
+            (blockSource (networkConfig svoNetwork) upstream)
+            store
+  case stopped of
+    Left UserInterrupt -> hPutStrLn stderr "stopped"
+    Left e -> throwIO e
+    Right () -> pure ()
+ where
+  -- Refuse a database of another network or watch set up front; a missing
+  -- one is answered with UNAVAILABLE until a sync creates it.
+  checkExisting identity =
+    doesFileExist svoDatabase >>= \case
+      False -> hPutStrLn stderr ("no database at " <> svoDatabase <> " yet; requests fail with UNAVAILABLE until it exists")
+      True -> do
+        store <- openStoreReadOnly svoDatabase
+        try (checkIdentity store identity) >>= \case
+          Left e -> closeStore store >> die ("cannot serve " <> svoDatabase <> ": " <> show (e :: StoreError))
+          Right () -> closeStore store
 
 renderSyncTrace :: SyncTrace -> Text
 renderSyncTrace = \case
@@ -268,6 +354,9 @@ commandParser :: Parser Command
 commandParser =
   hsubparser $
     command "sync" (info (Sync <$> syncOptions) (progDesc "Build the index in a database and keep it following the chain"))
+      <> command
+        "serve"
+        (info (Serve <$> serveOptions) (progDesc "Serve the index over gRPC while keeping it following the chain"))
       <> command "follow" (info (Follow <$> followOptions) (progDesc "Follow the chain and print one line per event"))
       <> command
         "fetch-blocks"
@@ -303,6 +392,39 @@ syncOptions =
       )
     <*> optional
       (option auto (long "blocks" <> metavar "N" <> help "Stop after applying N blocks"))
+
+serveOptions :: Parser ServeOptions
+serveOptions =
+  ServeOptions
+    <$> networkOption
+    <*> ( Nothing <$ flag' () (long "no-sync" <> help "Only serve an existing database; do not follow the chain")
+            <|> Just <$> upstreamOption
+        )
+    <*> strOption (long "db" <> metavar "PATH" <> help "SQLite database (created if missing, unless --no-sync)")
+    <*> optional
+      ( option
+          (eitherReader (parsePoint . Text.pack))
+          (long "from" <> metavar "origin|SLOT.HASH" <> help "Start point of a new database, as for sync")
+      )
+    <*> option
+      (eitherReader parseListen)
+      ( long "listen"
+          <> metavar "HOST:PORT"
+          <> value ("127.0.0.1", 50051)
+          <> help "Where to serve gRPC over plain HTTP/2 (default: 127.0.0.1:50051)"
+      )
+ where
+  parseListen s = case break (== ':') (reverse s) of
+    (rport, ':' : rhost)
+      | Just p <- readMaybe (reverse rport)
+      , p >= 0
+      , p < (65536 :: Integer)
+      , not (null rhost) ->
+          Right (unbracket (reverse rhost), fromIntegral p)
+    _ -> Left "expected HOST:PORT"
+  unbracket h = case h of
+    '[' : rest | not (null rest), last rest == ']' -> init rest
+    _ -> h
 
 fetchOptions :: Parser FetchOptions
 fetchOptions =

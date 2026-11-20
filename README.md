@@ -18,10 +18,13 @@ cardano-api) and can follow the chain two ways:
 ## Status
 
 Implemented so far: the block source for both modes, the extractor, the
-SQLite store with rollback, the sync loop (`mc-follower sync`) and the query
-layer behind every row RPC of [proto/mc_follower.proto](proto/mc_follower.proto).
-The nonce driver, epoch data (stake distribution, `max_tx_size`) and the gRPC
-server are still to come; the store already has their tables and a write API.
+SQLite store with rollback, the sync loop (`mc-follower sync`), the query
+layer behind every row RPC of [proto/mc_follower.proto](proto/mc_follower.proto)
+and the gRPC server (`mc-follower serve`). The nonce driver and epoch data
+(stake distribution, `max_tx_size`) are still to come; the store already has
+their tables and a write API, and the server answers `GetEpochNonce`,
+`GetStakeDistribution` and `GetMaxTxSize` from them (absent or empty until
+they are filled).
 
 | Module | Purpose |
 |---|---|
@@ -37,6 +40,10 @@ server are still to come; the store already has their tables and a write API.
 | `McFollower.Store.Sql` | Thin direct-sqlite layer (prepared-statement cache, transactions) |
 | `McFollower.Query` | One function per row RPC of the proto, against a store snapshot |
 | `McFollower.Sync` | The sync loop: block source to extractor to store, with progress reporting |
+| `McFollower.Server` | The gRPC server: one handler per RPC over `McFollower.Query`, status codes |
+| `McFollower.Server.Pool` | Bounded pool of read-only store connections, one per running request |
+| `McFollower.Server.Proto` | The service's RPC types and metadata for grapesy |
+| `Proto.McFollower` (`gen/`) | Messages generated from the proto by proto-lens-protoc |
 | `McFollower.BlockSource` | `ChainEvent`, the `BlockSource` interface, the reconnect loop |
 | `McFollower.BlockSource.ChainSync` | Pipelined chain-sync client shared by both modes |
 | `McFollower.BlockSource.N2N` | Node-to-node source: connection, block-fetch client, keep-alive |
@@ -54,6 +61,7 @@ Requirements:
 
 - GHC 9.6 and cabal 3.10 or later
 - `libsodium`, `libsecp256k1` and `libblst`, all visible to `pkg-config`
+- `libsnappy` (for grapesy's compression support), visible to the C linker
 
 On macOS, libsodium and secp256k1 come from Homebrew
 (`brew install libsodium secp256k1 pkg-config`). blst is not packaged by
@@ -61,7 +69,15 @@ Homebrew; build it from [supranational/blst](https://github.com/supranational/bl
 and install a `libblst.pc` for it, then point `PKG_CONFIG_PATH` at that
 directory. The project builds cardano-crypto-praos with
 `-external-libsodium-vrf`, so stock libsodium is enough; IOG's libsodium fork
-is not needed.
+is not needed. Homebrew's snappy (`brew install snappy`) has no pkg-config
+file and is not on the default linker path; tell cabal where it is in
+`cabal.project.local`:
+
+```cabal
+package snappy-c
+  extra-lib-dirs: /opt/homebrew/lib
+  extra-include-dirs: /opt/homebrew/include
+```
 
 ```sh
 export PKG_CONFIG_PATH=$HOME/.local/blst/lib/pkgconfig   # where libblst.pc is
@@ -71,6 +87,12 @@ cabal test
 ```
 
 The first build compiles the whole Cardano dependency tree and takes a while.
+
+The Haskell code for the proto messages is generated ahead of time and
+committed under `gen/`, as cardano-rpc does, so building needs neither
+`protoc` nor proto-lens-protoc. After changing the proto, regenerate it with
+`scripts/gen-proto.sh` (it needs `protoc` and proto-lens-protoc 0.9.0.1, the
+version that goes with the package set's proto-lens-runtime).
 
 ## Syncing the index
 
@@ -118,6 +140,48 @@ those outputs; the input lists of transactions creating committee-candidate
 outputs; every datum db-sync would put in its `datum` table (witness datums of
 valid transactions and inline datums of all outputs); and tx metadata under
 the bridge label 6500973.
+
+## Serving the index
+
+`mc-follower serve` runs the sync loop and the gRPC server of
+[proto/mc_follower.proto](proto/mc_follower.proto) in one process, over plain
+HTTP/2 without TLS:
+
+```sh
+mc-follower serve --network NAME (--relay HOST:PORT ... | --socket PATH | --no-sync) --db PATH [--listen HOST:PORT] [--from origin|SLOT.HASH]
+```
+
+- `--listen`: where to serve; default `127.0.0.1:50051`. A Midnight node
+  connects to `http://HOST:PORT`.
+- `--no-sync`: only serve an existing database (for example one that a
+  separate `mc-follower sync` keeps up to date). A database of another
+  network or watch set is refused at startup; a missing one is answered with
+  `UNAVAILABLE` until it exists.
+- `--db`, `--from`, `--relay` and `--socket` are as for `sync`.
+
+The sync loop writes on its own connection; every request reads from one
+read-only connection of a small pool, inside one read transaction, so it
+sees the index at one block boundary for its whole duration, streams
+included. SIGINT and SIGTERM stop the server and the sync loop; a block being
+applied is rolled back, never half written.
+
+Responses follow the proto's comments. Absent rows are normal responses
+(unset optional fields, empty streams). Errors:
+
+| Status | When |
+|---|---|
+| `INVALID_ARGUMENT` | Malformed request: a hash, policy id or asset name of the wrong length, a missing required message (window, asset, bridge lower bound), a limit or offset of 2^31 or more |
+| `FAILED_PRECONDITION` | The request names an address or policy the watch set does not index (for `GetUnspentOutputsAtAddress`: an address whose creating transactions' input lists are not kept), so an empty answer would be wrong |
+| `UNAVAILABLE` | The database cannot be opened or is for another network or watch set; no block is indexed yet; or the request's block number bound (range end, window end, `max_block_no`, `to_block_no`, `block_no`) is above the indexed tip, or its epoch bound (`GetLatestBlockForEpoch`, `GetLatestTokenOutputForEpoch`) is above the tip's epoch |
+| `INTERNAL` | Anything unexpected |
+
+Every block number a node sends is derived from earlier answers of the same
+indexer (its latest block, or a block it found by hash), so a bound above the
+tip means blocks were rolled back in between; answering with what is indexed
+would silently drop rows, so the server refuses instead. `GetStatus` reports
+the tip, the immutable tip (tip - k), k, the start block, the network magic,
+the upstream tip and whether the indexer is behind it (`syncing`; always
+false with `--no-sync`); `backfilling` is always empty for now.
 
 ## Fixture tool
 
