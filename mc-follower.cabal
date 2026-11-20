@@ -145,3 +145,31 @@ test-suite mc-follower-test
     , mtl
     , ouroboros-consensus:{cardano, protocol}
     , text
+
+-- Checks against the live preview network, Koios and Mithril; run with
+-- MC_FOLLOWER_LIVE=1.
+test-suite mc-follower-live
+  import:         warnings, lang
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Live.hs
+  ghc-options:    -threaded
+  other-modules:  Test.McFollower.Fixtures
+  build-depends:
+    , aeson
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-core
+    , cardano-slotting
+    , cborg
+    , containers
+    , contra-tracer
+    , http-client
+    , mc-follower
+    , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , tasty
+    , tasty-hunit
+    , text
