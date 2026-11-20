@@ -60,6 +60,20 @@ library
     , text
     , typed-protocols
 
+executable mc-follower
+  import:         warnings, lang
+  hs-source-dirs: app
+  main-is:        Main.hs
+  ghc-options:    -threaded -rtsopts
+  build-depends:
+    , base
+    , cardano-slotting
+    , contra-tracer
+    , mc-follower
+    , optparse-applicative
+    , ouroboros-consensus
+    , text
+
 test-suite mc-follower-test
   import:         warnings, lang
   type:           exitcode-stdio-1.0
