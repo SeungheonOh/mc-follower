@@ -39,6 +39,7 @@ library
     McFollower.LocalStateQuery
     McFollower.Network
     -- Epoch nonce and epoch data
+    McFollower.EpochData.MaxTxSize
     McFollower.EpochData.Mithril
     McFollower.EpochData.Stake
     McFollower.EraHistory
