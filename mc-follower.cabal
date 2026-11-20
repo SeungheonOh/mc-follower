@@ -42,6 +42,7 @@ library
     McFollower.EpochData.MaxTxSize
     McFollower.EpochData.Mithril
     McFollower.EpochData.Stake
+    McFollower.EpochData.Store
     McFollower.EraHistory
     McFollower.Nonce
     McFollower.Nonce.TrustedState
