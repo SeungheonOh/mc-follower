@@ -146,6 +146,25 @@ test-suite mc-follower-test
     , ouroboros-consensus:{cardano, protocol}
     , text
 
+-- Development tool: the Praos state in a node's ledger snapshot, as a
+-- trusted-state JSON. Not used by the indexer.
+executable ledger-snapshot-praos-state
+  import:         warnings, lang
+  hs-source-dirs: dev
+  main-is:        LedgerSnapshotState.hs
+  build-depends:
+    , base
+    , bytestring
+    , cardano-binary
+    , cardano-protocol-tpraos
+    , cborg
+    , containers
+    , mc-follower
+    , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , sop-extras
+    , strict-sop-core
+    , text
+
 -- Checks against the live preview network, Koios and Mithril; run with
 -- MC_FOLLOWER_LIVE=1.
 test-suite mc-follower-live
