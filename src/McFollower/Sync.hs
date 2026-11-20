@@ -4,6 +4,7 @@
 -- points, extract every block and apply it, and undo blocks on rollback.
 module McFollower.Sync
   ( SyncConfig (..)
+  , UpstreamTip (..)
   , SyncTrace (..)
   , Progress (..)
   , SyncStopped (..)
@@ -27,7 +28,7 @@ import Ouroboros.Consensus.Block (Point, blockPoint)
 import Ouroboros.Consensus.HardFork.History (PastHorizonException)
 import Ouroboros.Network.Block (Tip (..), getTipBlockNo)
 import Cardano.Slotting.Block (BlockNo (..))
-import Cardano.Slotting.Slot (WithOrigin (..))
+import Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 
 data SyncConfig = SyncConfig
   { scWatchFilter :: !WatchFilter
@@ -35,7 +36,17 @@ data SyncConfig = SyncConfig
   , scStopAfter :: !(Maybe Word64)
   -- ^ Stop after applying this many blocks.
   , scProgressEvery :: !NominalDiffTime
+  , scOnUpstreamTip :: !(Maybe UpstreamTip -> IO ())
+  -- ^ Called with the upstream's tip after each event has been applied to
+  -- the store ('Nothing' while the upstream chain is empty).
   }
+
+-- | The upstream's tip as chain-sync last reported it.
+data UpstreamTip = UpstreamTip
+  { utSlot :: !Word64
+  , utBlockNo :: !Word64
+  }
+  deriving stock (Eq, Show)
 
 -- | Counts since the previous progress report.
 data Progress = Progress
@@ -105,6 +116,7 @@ runSync tracer SyncConfig {..} source store = do
   noteUpstream var tip = do
     c <- readIORef var
     writeIORef var c {cUpstream = upstreamBlockNo tip}
+    scOnUpstreamTip (upstreamTip tip)
 
   recordBlock var rows@BlockRows {brTxs} = do
     c@Counters {..} <- readIORef var
@@ -140,6 +152,11 @@ runSync tracer SyncConfig {..} source store = do
                 }
             writeIORef var c {cSince = now, cBlocks = 0, cTxs = 0, cOutputs = 0}
       _ -> pure ()
+
+upstreamTip :: Tip Block -> Maybe UpstreamTip
+upstreamTip = \case
+  TipGenesis -> Nothing
+  Tip (SlotNo slot) _ (BlockNo n) -> Just (UpstreamTip slot n)
 
 upstreamBlockNo :: Tip Block -> Maybe Word64
 upstreamBlockNo tip = case getTipBlockNo tip of

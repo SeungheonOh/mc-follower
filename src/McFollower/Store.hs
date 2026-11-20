@@ -21,6 +21,7 @@ module McFollower.Store
   , StoreError (..)
   , openStore
   , openStoreReadOnly
+  , checkIdentity
   , closeStore
   , withStore
 
@@ -113,13 +114,22 @@ openStore path StoreIdentity {..} = do
           putMeta conn "watch_set" siWatchSet
       else do
         unless (version == schemaVersion) $ throwIO (IncompatibleSchema version)
-        storedMagic <- getMeta conn "network_magic"
-        unless (storedMagic == Just magic) $ throwIO (WrongNetwork (maybe "" id storedMagic))
-        storedWatch <- getMeta conn "watch_set"
-        unless (storedWatch == Just siWatchSet) $ throwIO (WrongWatchSet (maybe "" id storedWatch))
+        checkMeta conn siNetworkMagic siWatchSet
     pure (Store conn siSecurityParam)
  where
   magic = Text.pack (show siNetworkMagic)
+
+-- | Refuse a store that was created for another network or watch set (for
+-- stores opened with 'openStoreReadOnly').
+checkIdentity :: Store -> StoreIdentity -> IO ()
+checkIdentity Store {storeConn} StoreIdentity {siNetworkMagic, siWatchSet} = checkMeta storeConn siNetworkMagic siWatchSet
+
+checkMeta :: Conn -> Word32 -> Text -> IO ()
+checkMeta conn networkMagic watchSet = do
+  storedMagic <- getMeta conn "network_magic"
+  unless (storedMagic == Just (Text.pack (show networkMagic))) $ throwIO (WrongNetwork (maybe "" id storedMagic))
+  storedWatch <- getMeta conn "watch_set"
+  unless (storedWatch == Just watchSet) $ throwIO (WrongWatchSet (maybe "" id storedWatch))
 
 -- | Open an existing index for queries only.
 openStoreReadOnly :: FilePath -> IO Store

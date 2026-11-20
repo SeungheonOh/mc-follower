@@ -150,6 +150,7 @@ sync SyncOptions {soNetwork, soUpstream, soDatabase, soStart, soLimit} = do
         , scEraHistory = eraHistory soNetwork
         , scStopAfter = soLimit
         , scProgressEvery = 10
+        , scOnUpstreamTip = \_ -> pure ()
         }
       (blockSource cfg soUpstream)
       store
