@@ -40,13 +40,14 @@ import McFollower.BlockSource
   )
 import McFollower.BlockSource.N2C (LocalNodeConfig (..), n2cBlockSource)
 import McFollower.BlockSource.N2N (n2nBlockSource)
-import McFollower.EraHistory (GenesisParams (..), eraHistory, genesisParams)
+import McFollower.EraHistory (ChainParams (..), presetHistory)
 import McFollower.Extract (TxFeatures (..), blockFeatures)
 import McFollower.LocalStateQuery (QueryTarget (..), querySystemStart)
 import McFollower.Network
   ( NetworkConfig (..)
   , NetworkName (..)
   , RelayAddress
+  , chainParams
   , codecConfig
   , networkConfig
   , parseNetworkName
@@ -156,7 +157,7 @@ storeIdentity network =
   ( StoreIdentity
       { siNetworkMagic = unNetworkMagic (ncMagic (networkConfig network))
       , siWatchSet = renderWatchConfig watch
-      , siSecurityParam = gpSecurityParam (genesisParams network)
+      , siSecurityParam = cpSecurityParam (chainParams network)
       }
   , watch
   )
@@ -178,7 +179,7 @@ syncConfig :: NetworkName -> WatchFilter -> Maybe Word64 -> (Maybe UpstreamTip -
 syncConfig network wf limit onTip =
   SyncConfig
     { scWatchFilter = wf
-    , scEraHistory = eraHistory network
+    , scEraHistory = presetHistory (chainParams network)
     , scStopAfter = limit
     , scProgressEvery = 10
     , scOnUpstreamTip = onTip

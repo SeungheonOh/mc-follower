@@ -258,3 +258,55 @@ Connection progress and disconnects are written to stderr.
 ```sh
 cabal run mc-follower -- system-start --network preview --socket /path/to/node.socket --at immutable
 ```
+
+## Epoch nonce and epoch data
+
+| Module | Purpose |
+|---|---|
+| `McFollower.EraHistory` | Per-network chain constants and past hard forks, the `History.Summary`-based epoch info, the Praos configuration per era |
+| `McFollower.Nonce` | The epoch nonce driver: `tickChainDepState` and `reupdateChainDepState` over headers, rollback window, cross-check against a node |
+| `McFollower.Nonce.TrustedState` | The trusted starting `PraosState` and its point, in the node's own CBOR |
+| `McFollower.EpochData.Stake` | Per-pool stake per epoch from mark/set/go snapshots, completeness |
+| `McFollower.EpochData.Mithril` | Cardano stake distributions from a Mithril aggregator |
+| `McFollower.EpochData.MaxTxSize` | `maxTxSize` table per network and the tripwire on proposals that change it |
+| `McFollower.EpochNonceTable` | Shipped epoch nonces of past epochs per network, and how they combine with the driver's |
+| `McFollower.EpochData.Store` | The storage-facing interface for all of the above, and an in-memory store |
+
+Nonces of past epochs ship in `data/epoch-nonces/NETWORK.csv` (db-sync
+`epoch_param.nonce` from Koios; source and retrieval date in each file).
+Regenerate or extend them with:
+
+```sh
+scripts/fetch-epoch-nonces.py preview /tmp/koios-cache > data/epoch-nonces/preview.csv
+```
+
+`GetEpochNonce` is answered from the table up to its last epoch and from the
+driver after it; where both have an epoch they must agree, and a
+disagreement stops the indexer.
+
+The nonce driver supports Praos eras only (Babbage onward) and starts from a
+trusted protocol state, given as JSON:
+
+```json
+{ "point": "SLOT.HASH", "praos_state_cbor": "<hex of the node's PraosState encoding>" }
+```
+
+The CBOR is what a node returns for `DebugChainDepState` in a Praos era
+(`cardano-cli query protocol-state --out-file`); in node-to-client mode
+`McFollower.LocalStateQuery.queryEpochData` reads it directly.
+
+`ledger-snapshot-praos-state` (in `dev/`, not used by the indexer) prints the
+trusted state found in a node's ledger snapshot, e.g. from a Mithril
+ancillary archive:
+
+```sh
+cabal run ledger-snapshot-praos-state -- preview ledger/128252153/state
+```
+
+Live checks against preview (a relay, Koios and the Mithril aggregator) are a
+separate test suite that only runs on request:
+
+```sh
+cabal build mc-follower-live
+MC_FOLLOWER_LIVE=1 $(cabal list-bin mc-follower-live)
+```

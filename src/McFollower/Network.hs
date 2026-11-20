@@ -5,6 +5,7 @@ module McFollower.Network
   , NetworkConfig (..)
   , RelayAddress (..)
   , networkConfig
+  , chainParams
   , parseNetworkName
   , parseRelayAddress
   , renderRelayAddress
@@ -13,11 +14,14 @@ module McFollower.Network
   ) where
 
 import Cardano.Api qualified as Api
-import Cardano.Chain.Slotting (EpochSlots (..))
+import Cardano.Slotting.Slot (EpochNo (..), EpochSize (..))
+import Cardano.Slotting.Time (SystemStart (..), slotLengthFromSec)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (UTCTime (..), fromGregorian)
 import McFollower.Block (Block, parsePoint)
+import McFollower.EraHistory (ChainParams (..), activeSlotCoeffOneTwentieth, byronEpochSlots)
 import Network.Socket (HostName, PortNumber)
 import Ouroboros.Consensus.Block (CodecConfig, Point)
 import Ouroboros.Consensus.Byron.Ledger (CodecConfig (ByronCodecConfig))
@@ -38,8 +42,8 @@ data RelayAddress = RelayAddress
 data NetworkConfig = NetworkConfig
   { ncName :: !NetworkName
   , ncMagic :: !NetworkMagic
-  , ncByronEpochSlots :: !EpochSlots
-  -- ^ Byron genesis @10 * k@. Only needed to decode Byron blocks.
+  , ncChain :: !ChainParams
+  -- ^ Genesis and hard-fork constants ('chainParams').
   , ncRelays :: !(NonEmpty RelayAddress)
   -- ^ Bootstrap peers from the network's official topology file.
   , ncRecentPoint :: !(Point Block)
@@ -54,7 +58,7 @@ networkConfig = \case
     NetworkConfig
       { ncName = Mainnet
       , ncMagic = NetworkMagic 764824073
-      , ncByronEpochSlots = EpochSlots 21600
+      , ncChain = chainParams Mainnet
       , ncRelays =
           RelayAddress "backbone.cardano.iog.io" 3001
             :| [RelayAddress "backbone.mainnet.cardanofoundation.org" 3001]
@@ -65,7 +69,7 @@ networkConfig = \case
     NetworkConfig
       { ncName = Preprod
       , ncMagic = NetworkMagic 1
-      , ncByronEpochSlots = EpochSlots 21600
+      , ncChain = chainParams Preprod
       , ncRelays = RelayAddress "preprod-node.play.dev.cardano.org" 3001 :| []
       , ncRecentPoint =
           point "139500748.36ae5dc73c7c2f623fbce5300b5949204e89a347b48554f7b9a4c7015edb93c5"
@@ -74,13 +78,68 @@ networkConfig = \case
     NetworkConfig
       { ncName = Preview
       , ncMagic = NetworkMagic 2
-      , ncByronEpochSlots = EpochSlots 4320
+      , ncChain = chainParams Preview
       , ncRelays = RelayAddress "preview-node.play.dev.cardano.org" 3001 :| []
       , ncRecentPoint =
           point "128531690.290f168381e66d477e93d2ffc33e0706cdfdc6acfc1c7c723fb050fe39998128"
       }
  where
   point = either error id . parsePoint
+
+-- | The chain constants of each network, the only place they are written
+-- down. Sources: the networks' Byron and Shelley genesis files
+-- (@startTime@, @protocolConsts.k@, @blockVersionData.slotDuration@,
+-- @securityParam@, @activeSlotsCoeff@, @epochLength@, @slotLength@,
+-- @slotsPerKESPeriod@, @maxKESEvolutions@) published at
+-- <https://book.play.dev.cardano.org/environments/>, read 2026-11-20, and
+-- cross-checked against the Midnight node's
+-- @res/<network>/pc-chain-config.json@ (first Shelley epoch, slot and
+-- timestamp, epoch duration). Hard forks: the @era@ of each epoch in Koios
+-- @epoch_params@, read 2026-11-20; preview's first four agree with the
+-- @Test*HardForkAtEpoch: 0@ entries of its node configuration.
+chainParams :: NetworkName -> ChainParams
+chainParams = \case
+  -- Shelley from epoch 208, slot 4492800, 2020-07-29T21:44:51Z.
+  Mainnet ->
+    ChainParams
+      { cpSystemStart = utc 2017 9 23 (21 * 3600 + 44 * 60 + 51)
+      , cpSecurityParam = 2160
+      , cpActiveSlotCoeff = activeSlotCoeffOneTwentieth
+      , cpByronSlotLength = slotLengthFromSec 20
+      , cpShelleyEpochLength = EpochSize 432000
+      , cpShelleySlotLength = slotLengthFromSec 1
+      , cpSlotsPerKESPeriod = 129600
+      , cpMaxKESEvolutions = 62
+      , cpHardForks = map EpochNo [208, 236, 251, 290, 365, 507]
+      }
+  -- Shelley from epoch 4, slot 86400, 2022-06-21T00:00:00Z.
+  Preprod ->
+    ChainParams
+      { cpSystemStart = utc 2022 6 1 0
+      , cpSecurityParam = 2160
+      , cpActiveSlotCoeff = activeSlotCoeffOneTwentieth
+      , cpByronSlotLength = slotLengthFromSec 20
+      , cpShelleyEpochLength = EpochSize 432000
+      , cpShelleySlotLength = slotLengthFromSec 1
+      , cpSlotsPerKESPeriod = 129600
+      , cpMaxKESEvolutions = 62
+      , cpHardForks = map EpochNo [4, 5, 6, 7, 12, 163]
+      }
+  -- No Byron epochs: the network forks to Shelley-based eras at epoch 0.
+  Preview ->
+    ChainParams
+      { cpSystemStart = utc 2022 10 25 0
+      , cpSecurityParam = 432
+      , cpActiveSlotCoeff = activeSlotCoeffOneTwentieth
+      , cpByronSlotLength = slotLengthFromSec 20
+      , cpShelleyEpochLength = EpochSize 86400
+      , cpShelleySlotLength = slotLengthFromSec 1
+      , cpSlotsPerKESPeriod = 129600
+      , cpMaxKESEvolutions = 62
+      , cpHardForks = map EpochNo [0, 0, 0, 0, 3, 646]
+      }
+ where
+  utc y m d secs = SystemStart (UTCTime (fromGregorian y m d) (fromIntegral (secs :: Int)))
 
 parseNetworkName :: Text -> Either String NetworkName
 parseNetworkName = \case
@@ -108,7 +167,7 @@ renderRelayAddress (RelayAddress host port) = Text.pack host <> ":" <> Text.pack
 codecConfig :: NetworkConfig -> CodecConfig Block
 codecConfig cfg =
   CardanoCodecConfig
-    (ByronCodecConfig (ncByronEpochSlots cfg))
+    (ByronCodecConfig (byronEpochSlots (ncChain cfg)))
     ShelleyCodecConfig
     ShelleyCodecConfig
     ShelleyCodecConfig

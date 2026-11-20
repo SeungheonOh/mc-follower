@@ -1,0 +1,12 @@
+{
+  "comment": "Public data for a trusted preview Praos state after block 128544245.cac76b20..., read 2026-11-20 18:44 UTC. ogmios: Koios POST /ogmios queryLedgerState/nonces, with queryNetwork/tip and queryLedgerState/tip equal to the point before and after. parent_hash: Koios block_info of the block. previous_epoch_nonce: Koios epoch_params nonce of epoch 1486.",
+  "point": "128544245.cac76b20cff23210fe8926bf6b41048465982427c56022d6356b1fc1c3be230a",
+  "ogmios": {
+    "epochNonce": "581f893a81c5db091e20627a8abb7865241787b2e9772757d35988e094eb0bdd",
+    "candidateNonce": "0e8990b14b2a93118c256bee7c178e2e9d25b29cd49ea9c7544952a26a3e8a1a",
+    "evolvingNonce": "3c89bc8e76e9e84186abbd75d8711f099bbc4724c5376a91ecc6647e2994317d",
+    "lastEpochLastAncestor": "89cf6db5ba7fa2e85a4bf7310491024d9c4f4019d44157099f35ab9d15198015"
+  },
+  "parent_hash": "6754ad9b9126f2e75926a24f9093548b4569e1df9f5ccb211b3f90582ae55022",
+  "previous_epoch_nonce": "e598cab3b7e4866da524a6a3c2d657b5bc264dfc7f451f17f409c339afe02dab"
+}

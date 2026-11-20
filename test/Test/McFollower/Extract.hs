@@ -20,9 +20,9 @@ import Data.Text.Encoding qualified as Text
 import Data.Word (Word64)
 import McFollower.Address (parseAddress, renderAddress)
 import McFollower.BlockFile (readBlockFile)
-import McFollower.EraHistory (SlotInfo (..), eraHistory, slotInfo)
+import McFollower.EraHistory (SlotInfo (..), presetHistory, slotInfo)
 import McFollower.Extract
-import McFollower.Network (NetworkName (..), codecConfig, networkConfig)
+import McFollower.Network (NetworkName (..), chainParams, codecConfig, networkConfig)
 import McFollower.WatchSet (WatchFilter (..), watchFilter, watchPreset)
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
@@ -148,7 +148,7 @@ tests =
         ]
     ]
  where
-  info network slot = either (error . show) id (slotInfo (eraHistory network) (SlotNo slot))
+  info network slot = either (error . show) id (slotInfo (presetHistory (chainParams network)) (SlotNo slot))
   -- Each of these transactions creates its watched output at index 2,
   -- holding one NFT of a watched policy or at a watched address.
   out txHash address (datum, policy) = (hex txHash, 2, address, Just (hex datum), [(hex policy, "", 1)])
@@ -169,7 +169,7 @@ extract :: NetworkName -> WatchFilter -> FilePath -> IO BlockRows
 extract network wf file = do
   let path = "test" </> "fixtures" </> networkDir network </> file <> ".cbor"
   blk <- readBlockFile (codecConfig (networkConfig network)) path >>= either fail pure
-  either (fail . show) pure (extractBlock wf (eraHistory network) blk)
+  either (fail . show) pure (extractBlock wf (presetHistory (chainParams network)) blk)
  where
   networkDir = \case
     Mainnet -> "mainnet"

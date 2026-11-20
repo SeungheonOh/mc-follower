@@ -34,6 +34,7 @@ import McFollower.BlockSource
   , reconnecting
   )
 import McFollower.BlockSource.ChainSync (chainSyncClient)
+import McFollower.EraHistory (byronEpochSlots)
 import McFollower.Network (NetworkConfig (..), networkId)
 import Ouroboros.Consensus.HardFork.Combinator (OneEraHash (..))
 import Ouroboros.Network.Block (Point, Tip (..))
@@ -51,7 +52,7 @@ data LocalNodeConfig = LocalNodeConfig
 localNodeConnectInfo :: LocalNodeConfig -> LocalNodeConnectInfo
 localNodeConnectInfo LocalNodeConfig {lncNetwork, lncSocketPath} =
   LocalNodeConnectInfo
-    { localConsensusModeParams = CardanoModeParams (ncByronEpochSlots lncNetwork)
+    { localConsensusModeParams = CardanoModeParams (byronEpochSlots (ncChain lncNetwork))
     , localNodeNetworkId = networkId lncNetwork
     , localNodeSocketPath = File lncSocketPath
     }

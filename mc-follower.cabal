@@ -9,6 +9,7 @@ description:
 license:            Apache-2.0
 build-type:         Simple
 extra-doc-files:    README.md
+extra-source-files: data/epoch-nonces/*.csv
 
 common warnings
   ghc-options:
@@ -28,6 +29,8 @@ common lang
 library
   import:          warnings, lang
   hs-source-dirs:  src
+
+  -- Block source, era history and network parameters.
   exposed-modules:
     McFollower.Block
     McFollower.BlockSource
@@ -36,36 +39,14 @@ library
     McFollower.BlockSource.N2N
     McFollower.BlockSource.N2N.Pending
     McFollower.BlockSource.Recent
+    McFollower.EraHistory
     McFollower.LocalStateQuery
     McFollower.Network
-
-  build-depends:
-    , base                                                                     >=4.18   && <5
-    , base16-bytestring
-    , bytestring
-    , cardano-api                                                              ^>=11.12
-    , cardano-diffusion                                                        ^>=1.3
-    , cardano-ledger-byron
-    , cardano-ledger-core
-    , cardano-slotting
-    , containers
-    , contra-tracer
-    , io-classes:strict-stm
-    , microlens
-    , network
-    , network-mux
-    , ouroboros-consensus:{ouroboros-consensus, cardano, diffusion}            ^>=5.4
-    , ouroboros-network:{api, framework, ouroboros-network, protocols}         ^>=2.0
-    , random
-    , stm
-    , text
-    , typed-protocols
 
   -- Indexer: extractor, store, sync loop and queries.
   exposed-modules:
     McFollower.Address
     McFollower.BlockFile
-    McFollower.EraHistory
     McFollower.Extract
     McFollower.Query
     McFollower.Store
@@ -74,21 +55,65 @@ library
     McFollower.Sync
     McFollower.WatchSet
 
+  -- Epoch nonce and epoch data.
+  exposed-modules:
+    McFollower.EpochData.MaxTxSize
+    McFollower.EpochData.Mithril
+    McFollower.EpochData.Stake
+    McFollower.EpochData.Store
+    McFollower.EpochNonceTable
+    McFollower.Nonce
+    McFollower.Nonce.TrustedState
+
   build-depends:
+    , aeson
+    , base                                                                     >=4.18   && <5
+    , base16-bytestring
     , base58-bytestring
     , bech32
+    , bytestring
+    , cardano-api                                                              ^>=11.12
     , cardano-binary
     , cardano-crypto-class
     , cardano-crypto-wrapper
+    , cardano-diffusion                                                        ^>=1.3
     , cardano-ledger-alonzo
+    , cardano-ledger-api
     , cardano-ledger-babbage
     , cardano-ledger-binary
+    , cardano-ledger-byron
+    , cardano-ledger-conway
+    , cardano-ledger-core
+    , cardano-ledger-dijkstra
     , cardano-ledger-mary
+    , cardano-ledger-shelley
+    , cardano-protocol-tpraos
+    , cardano-slotting
     , cardano-strict-containers
     , cborg
+    , containers
+    , contra-tracer
     , direct-sqlite
+    , file-embed
+    , http-client
+    , http-client-tls
+    , http-types
+    , io-classes:strict-stm
+    , microlens
+    , mtl
+    , network
+    , network-mux
+    , ouroboros-consensus:{ouroboros-consensus, cardano, diffusion, protocol}  ^>=5.4
+    , ouroboros-network:{api, framework, ouroboros-network, protocols}         ^>=2.0
+    , random
+    , serialise
+    , sop-core
     , sop-extras
+    , stm
+    , strict-sop-core
+    , text
     , time
+    , typed-protocols
 
   -- gRPC server.
   exposed-modules:
@@ -158,32 +183,93 @@ test-suite mc-follower-test
     Test.McFollower.Query
     Test.McFollower.Store
 
+  -- gRPC server tests.
+  other-modules:  Test.McFollower.Server
+
+  -- Epoch nonce and epoch data tests.
+  other-modules:
+    Test.McFollower.EpochData
+    Test.McFollower.EpochNonceTable
+    Test.McFollower.Fixtures
+    Test.McFollower.Nonce
+
+  build-depends:
+    , aeson
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-data
+    , cardano-ledger-api
+    , cardano-ledger-babbage
+    , cardano-ledger-binary
+    , cardano-ledger-conway
+    , cardano-ledger-core
+    , cardano-ledger-mary
+    , cardano-ledger-shelley
+    , cardano-slotting
+    , cborg
+    , containers
+    , filepath
+    , grapesy
+    , grpc-spec
+    , mc-follower
+    , microlens
+    , mtl
+    , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , ouroboros-network:{api, protocols}
+    , proto-lens
+    , tasty
+    , tasty-hunit
+    , temporary
+    , text
+    , transformers
+
+-- Development tool: the Praos state in a node's ledger snapshot, as a
+-- trusted-state JSON. Not used by the indexer.
+executable ledger-snapshot-praos-state
+  import:         warnings, lang
+  hs-source-dirs: dev
+  main-is:        LedgerSnapshotState.hs
   build-depends:
     , base
     , bytestring
-    , mc-follower
-    , ouroboros-consensus
-    , ouroboros-network:{api, protocols}
-    , tasty
-    , tasty-hunit
-
-  -- Indexer tests.
-  build-depends:
-    , base16-bytestring
-    , cardano-crypto-class
-    , cardano-ledger-binary
-    , cardano-ledger-core
-    , cardano-ledger-mary
-    , cardano-slotting
+    , cardano-binary
+    , cardano-protocol-tpraos
+    , cborg
     , containers
-    , filepath
-    , temporary
+    , mc-follower
+    , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , sop-extras
+    , strict-sop-core
     , text
 
-  -- gRPC server tests.
-  other-modules:  Test.McFollower.Server
+-- Checks against the live preview network, Koios and Mithril; run with
+-- MC_FOLLOWER_LIVE=1.
+test-suite mc-follower-live
+  import:         warnings, lang
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Live.hs
+  ghc-options:    -threaded
+  other-modules:  Test.McFollower.Fixtures
   build-depends:
-    , grapesy
-    , grpc-spec
-    , proto-lens
-    , transformers
+    , aeson
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-core
+    , cardano-slotting
+    , cborg
+    , containers
+    , contra-tracer
+    , http-client
+    , mc-follower
+    , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , ouroboros-network:api
+    , tasty
+    , tasty-hunit
+    , text
