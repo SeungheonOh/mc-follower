@@ -114,6 +114,10 @@ test-suite mc-follower-test
     Test.McFollower.Pending
     Test.McFollower.Points
     Test.McFollower.Recent
+    -- Epoch nonce and epoch data
+    Test.McFollower.EpochData
+    Test.McFollower.Fixtures
+    Test.McFollower.Nonce
 
   build-depends:
     , base
@@ -123,3 +127,21 @@ test-suite mc-follower-test
     , ouroboros-network:{api, protocols}
     , tasty
     , tasty-hunit
+    -- Epoch nonce and epoch data
+    , aeson
+    , base16-bytestring
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-data
+    , cardano-ledger-api
+    , cardano-ledger-babbage
+    , cardano-ledger-conway
+    , cardano-ledger-core
+    , cardano-ledger-shelley
+    , cardano-slotting
+    , cborg
+    , containers
+    , microlens
+    , mtl
+    , ouroboros-consensus:{cardano, protocol}
+    , text
