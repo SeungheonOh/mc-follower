@@ -4,7 +4,7 @@ Usage: python3 -I compare.py DB RUST_OUTPUT (the database the server serves, pre
 The SQL below is written from the db-sync queries' semantics (CONTRACT.md / proto comments),
 independently of McFollower.Query.
 """
-import sqlite3, sys, datetime
+import sqlite3, sys, datetime, os
 
 db, out = sys.argv[1], sys.argv[2]
 c = sqlite3.connect(f"file:{db}?immutable=1", uri=True)
@@ -23,6 +23,31 @@ K = 432
 
 exp = {}
 def section(name, lines): exp[name] = lines
+ERROR = "ERROR"  # the call must fail (UNAVAILABLE): the indexer does not know the value
+
+# Epoch data (CONTRACT.md S13, S14 and the serving rules in README): nonces from the
+# shipped table up to its last epoch, then the nonce driver's; stake only when complete;
+# maxTxSize from a node's row, else preview's table (16384 from epoch 0) unless an
+# unacknowledged proposal could have changed it.
+table = {}
+for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data/epoch-nonces/preview.csv")):
+    line = line.strip()
+    if line and not line.startswith("#") and line != "epoch,nonce":
+        e, n = line.split(",")
+        table[int(e)] = n
+def nonce(e):
+    if e in table: return [table[e]] if table[e] else []
+    r = q("select nonce from epoch_nonce where epoch_no = ?", e)
+    if not r: return ERROR
+    return [hx(r[0][0])] if r[0][0] is not None else []
+def stake(e):
+    if not q("select 1 from epoch_stake where epoch_no = ? and complete = 1", e): return ERROR
+    return [f"{hx(r[0])} {u64(r[1])}" for r in q("select pool_hash, stake from pool_stake where epoch_no = ? order by pool_hash", e)]
+def max_tx_size(e):
+    r = q("select max_tx_size from epoch_param where epoch_no = ?", e)
+    if r: return [str(r[0][0])]
+    if q("select 1 from max_tx_size_sighting where earliest_epoch <= ?", e): return ERROR
+    return ["16384"]
 
 (tip_no, tip_hash, tip_epoch, tip_slot, tip_time, tip_txs), = q("select block_no, hash, epoch_no, slot_no, time, tx_count from block where block_no is not null order by block_no desc limit 1")
 blk = lambda r: f"block {r[0]} {hx(r[1])} epoch {r[2]} slot {r[3]} time {t(r[4])}"
@@ -34,7 +59,7 @@ section("BlockRowSource::get_highest_block(tip-10, last hour)", blocks(
 section("BlockRowSource::get_block_by_hash(tip)", blocks("where hash = ?", tip_hash))
 section("BlockRowSource::get_block_by_hash(unknown)", [])
 section("McBlockByHashRowSource::get_block_by_hash(tip)", [blocks("where hash = ?", tip_hash)[0] + f" txs {tip_txs}"])
-section("CNightObservationRowSource::get_max_tx_size(tip)", [str(r[0]) for r in q("select p.max_tx_size from block b join epoch_param p using (epoch_no) where b.block_no = ?", tip_no)])
+section("CNightObservationRowSource::get_max_tx_size(tip)", max_tx_size(tip_epoch))
 
 first, = q("select min(block_no) from block where block_no is not null")[0]
 win = (first, 0, tip_no, tip_txs + 1)
@@ -77,13 +102,18 @@ section("CandidatesRowSource::get_latest_block_for_epoch(tip epoch - 1)", [
         "select block_no, hash, epoch_no, slot_no from block where epoch_no <= ? and block_no is not null order by slot_no desc limit 1", tip_epoch - 1)])
 section("CandidatesRowSource::get_latest_stable_epoch(k)", [str(r[0]) for r in q(
     "select s.epoch_no - 1 from block b join block s on s.block_no = b.block_no - ? where b.block_no is not null order by b.block_no desc limit 1", K)])
-section("CandidatesRowSource::get_stake_distribution(tip epoch)", [f"{hx(r[0])} {u64(r[1])}" for r in q("select pool_hash, stake from pool_stake where epoch_no = ? order by pool_hash", tip_epoch)])
+section("CandidatesRowSource::get_stake_distribution(tip epoch)", stake(tip_epoch))
+section("CandidatesRowSource::get_stake_distribution(tip epoch - 1)", stake(tip_epoch - 1))
 tok = q("""select o.tx_hash, o.idx, b.epoch_no, b.block_no, b.slot_no, o.block_index, d.bytes
   from ma_tx_out m join tx_out o on o.id = m.tx_out_id join block b on b.id = o.block_id left join datum d on d.hash = o.datum_hash
   where m.policy = ? and m.name = x'' and b.epoch_no <= ? order by b.block_no desc, o.block_index desc, o.idx desc limit 1""", PERM, tip_epoch)
 section("CandidatesRowSource::get_token_utxo_for_epoch(permissioned candidates, tip epoch)", [
     f"{hx(r[0])}#{r[1]} epoch {r[2]} block {r[3]} slot {r[4]} tx {r[5]} datum {hx(r[6]) if r[6] else '-'}" for r in tok])
-section("CandidatesRowSource::get_epoch_nonce(tip epoch)", [hx(r[0]) for r in q("select nonce from epoch_nonce where epoch_no = ?", tip_epoch)])
+for back in (3, 2, 1):
+    section(f"CandidatesRowSource::get_epoch_nonce(tip epoch - {back})", nonce(tip_epoch - back))
+section("CandidatesRowSource::get_epoch_nonce(tip epoch)", nonce(tip_epoch))
+section("error: CandidatesRowSource::get_epoch_nonce(tip epoch + 2)", nonce(tip_epoch + 2))
+section("error: CandidatesRowSource::get_stake_distribution(tip epoch + 3)", stake(tip_epoch + 3))
 CAND = "addr_test1wz5ax0hjvhx2uqef8sqrxnmfywd37hea4truhqxu4yxp9hsvggkfm"
 cand = []
 for r in q("""select o.tx_hash, o.idx, o.block_no, b.slot_no, b.epoch_no, o.block_index, o.address, d.bytes, o.block_id
@@ -122,6 +152,10 @@ for line in open(out):
     elif ": " in line and " row(s)" in line:
         cur = line.split(": ")[0]
         got[cur] = []
+    elif ": error: " in line:
+        got[line.split(": error: ")[0]] = ERROR
+        print(f"         ({line[:200]})")
+        cur = None
     else:
         cur = None
 
@@ -132,10 +166,10 @@ for name, lines in exp.items():
         print(f"MISSING  {name}"); ok = False; continue
     # Rust prints datums re-encoded by CSL; compare them separately.
     if g == lines:
-        print(f"MATCH    {name} ({len(lines)} rows)")
+        print(f"MATCH    {name} ({'an error' if lines == ERROR else str(len(lines)) + ' rows'})")
     else:
         ok = False
-        print(f"DIFFER   {name}: rust {len(g)} rows, sqlite {len(lines)} rows")
+        print(f"DIFFER   {name}: rust {g if g == ERROR else len(g)} rows, sqlite {lines if lines == ERROR else len(lines)} rows")
         for a, b in zip(g, lines):
             if a != b:
                 print(f"   rust:   {a}\n   sqlite: {b}")

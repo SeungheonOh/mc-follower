@@ -320,9 +320,21 @@ async fn main() -> Result<(), BoxError> {
 			})
 		},
 	);
+	for back in (1..=3).rev() {
+		show(
+			&format!("CandidatesRowSource::get_epoch_nonce(tip epoch - {back})"),
+			source.get_epoch_nonce(EpochNumber(epoch.0 - back)).await,
+			|row| opt(row, |nonce| h(nonce.0)),
+		);
+	}
 	show("CandidatesRowSource::get_epoch_nonce(tip epoch)", source.get_epoch_nonce(epoch).await, |row| {
 		opt(row, |nonce| h(nonce.0))
 	});
+	show(
+		"CandidatesRowSource::get_stake_distribution(tip epoch - 1)",
+		source.get_stake_distribution(EpochNumber(epoch.0 - 1)).await,
+		|rows| rows.iter().map(|r| format!("{} {}", h(r.pool_hash), r.stake.0)).collect(),
+	);
 	show(
 		"CandidatesRowSource::get_utxos_for_address(committee candidates, tip)",
 		source.get_utxos_for_address(&Address(COMMITTEE_CANDIDATES.to_string()), tip.block_no).await,
@@ -390,6 +402,16 @@ async fn main() -> Result<(), BoxError> {
 	);
 
 	// Errors the node must not mistake for absent data
+	show(
+		"error: CandidatesRowSource::get_epoch_nonce(tip epoch + 2)",
+		source.get_epoch_nonce(EpochNumber(epoch.0 + 2)).await,
+		|row| vec![format!("{:?}", row.map(|n| h(n.0)))],
+	);
+	show(
+		"error: CandidatesRowSource::get_stake_distribution(tip epoch + 3)",
+		source.get_stake_distribution(EpochNumber(epoch.0 + 3)).await,
+		|rows| vec![format!("{} rows", rows.len())],
+	);
 	show(
 		"error: CandidatesRowSource::get_utxos_for_address(mapping validator: no input lists)",
 		source.get_utxos_for_address(&Address(MAPPING_VALIDATOR.to_string()), tip.block_no).await,
