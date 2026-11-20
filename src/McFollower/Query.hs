@@ -51,11 +51,8 @@ module McFollower.Query
     -- * Authority selection
   , getLatestBlockForEpoch
   , getLatestStableEpoch
-  , eachPoolStake
-  , getStakeDistribution
   , TokenOutput (..)
   , getLatestTokenOutputForEpoch
-  , getEpochNonce
   , AddressOutput (..)
   , eachUnspentOutputAtAddress
   , getUnspentOutputsAtAddress
@@ -73,7 +70,7 @@ module McFollower.Query
   , AssetSpendRow (..)
   , eachAssetSpend
   , getAssetSpends
-  , getMaxTxSize
+  , getBlockEpoch
 
     -- * Federated authority observation
   , GovernanceOutput (..)
@@ -370,19 +367,6 @@ getLatestStableEpoch k snap =
       [[SQLInteger e]] -> pure (Just e)
       rows -> rowError "stable epoch" (concat rows)
 
--- | @GetStakeDistribution@: (pool hash, lovelace) ordered by pool hash. Empty
--- unless the epoch's distribution was stored.
-eachPoolStake :: Word32 -> Snapshot -> Sink (ByteString, Word64) -> IO ()
-eachPoolStake epoch snap =
-  eachRow
-    snap
-    "SELECT pool_hash, stake FROM pool_stake WHERE epoch_no = ? ORDER BY pool_hash"
-    [int epoch]
-    (\case [SQLBlob p, SQLInteger s] -> pure (p, fromWord64Bits s); row -> rowError "stake" row)
-
-getStakeDistribution :: Word32 -> Snapshot -> IO [(ByteString, Word64)]
-getStakeDistribution epoch = collect . eachPoolStake epoch
-
 data TokenOutput = TokenOutput
   { toTxHash :: !ByteString
   , toIndex :: !Word16
@@ -415,14 +399,6 @@ getLatestTokenOutputForEpoch AssetId {..} epoch snap =
       [[SQLBlob h, SQLInteger i, SQLInteger e, SQLInteger n, SQLInteger s, SQLInteger t, d]] ->
         Just . TokenOutput h (fromIntegral i) (fromIntegral e) (fromIntegral n) (fromIntegral s) (fromIntegral t) <$> datumColumn d
       rows -> rowError "token output" (concat rows)
-
--- | @GetEpochNonce@.
-getEpochNonce :: Word32 -> Snapshot -> IO (Maybe ByteString)
-getEpochNonce epoch snap =
-  query (snapshotConn snap) "SELECT nonce FROM epoch_nonce WHERE epoch_no = ?" [int epoch] >>= \case
-    [] -> pure Nothing
-    [[SQLBlob n]] -> pure (Just n)
-    rows -> rowError "nonce" (concat rows)
 
 data AddressOutput = AddressOutput
   { aoTxHash :: !ByteString
@@ -632,18 +608,14 @@ eachAssetSpend AssetId {..} window page snap =
 getAssetSpends :: AssetId -> Window -> Page -> Snapshot -> IO [AssetSpendRow]
 getAssetSpends asset window page = collect . eachAssetSpend asset window page
 
--- | @GetMaxTxSize@: @maxTxSize@ of the epoch of block @block@; absent if
--- the block or the epoch's parameters are unknown.
-getMaxTxSize :: Word32 -> Snapshot -> IO (Maybe Word64)
-getMaxTxSize block snap =
-  query
-    (snapshotConn snap)
-    "SELECT max(p.max_tx_size) FROM block b JOIN epoch_param p ON p.epoch_no = b.epoch_no WHERE b.block_no = ?"
-    [int block]
-    >>= \case
-      [[SQLNull]] -> pure Nothing
-      [[SQLInteger s]] -> pure (Just (fromIntegral s))
-      rows -> rowError "max tx size" (concat rows)
+-- | The epoch of block @block@, for @GetMaxTxSize@ (whose answer is the
+-- epoch's, "McFollower.EpochData.Serve"); absent if the block is unknown.
+getBlockEpoch :: Word32 -> Snapshot -> IO (Maybe Word32)
+getBlockEpoch block snap =
+  query (snapshotConn snap) "SELECT epoch_no FROM block WHERE block_no = ?" [int block] >>= \case
+    [] -> pure Nothing
+    [[SQLInteger e]] -> pure (Just (fromIntegral e))
+    rows -> rowError "block epoch" (concat rows)
 
 data GovernanceOutput = GovernanceOutput
   { goDatum :: !ByteString

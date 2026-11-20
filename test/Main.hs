@@ -2,6 +2,7 @@ module Main (main) where
 
 import Test.McFollower.EpochData qualified as EpochData
 import Test.McFollower.EpochNonceTable qualified as EpochNonceTable
+import Test.McFollower.EpochSync qualified as EpochSync
 import Test.McFollower.Extract qualified as Extract
 import Test.McFollower.Network qualified as Network
 import Test.McFollower.Nonce qualified as Nonce
@@ -27,5 +28,6 @@ main =
         , Nonce.tests
         , EpochNonceTable.tests
         , EpochData.tests
+        , EpochSync.tests
         ]
     )

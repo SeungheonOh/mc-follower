@@ -12,6 +12,12 @@
 -- * Positions used by queries (@block_no@, @block_index@, output @idx@ and
 --   the spending position) are copied onto the output and asset rows so that
 --   every query is an index range scan.
+-- * Epoch data produced by a block (nonce driver checkpoints, the epoch
+--   nonces they carry, @maxTxSize@ proposal sightings) carries the block's
+--   @block_id@ and goes with it on a rollback. @block_id@ 0 stands for the
+--   start point. Epoch data from outside the chain (stake distributions and
+--   @maxTxSize@ read from a node or Mithril at an immutable point) is keyed
+--   by epoch only.
 module McFollower.Store.Schema
   ( schemaVersion
   , schema
@@ -22,7 +28,7 @@ import Data.Text (Text)
 -- | Stored in @PRAGMA user_version@. A database with another version is
 -- refused.
 schemaVersion :: Int
-schemaVersion = 1
+schemaVersion = 2
 
 schema :: Text
 schema =
@@ -113,14 +119,39 @@ schema =
   \  PRIMARY KEY (block_id, block_index, label)\n\
   \) STRICT, WITHOUT ROWID;\n\
   \\n\
+  \CREATE TABLE nonce_checkpoint (\n\
+  \  block_id INTEGER PRIMARY KEY,\n\
+  \  slot_no INTEGER NOT NULL,\n\
+  \  hash BLOB NOT NULL,\n\
+  \  praos_state BLOB NOT NULL,\n\
+  \  new_epoch_no INTEGER,\n\
+  \  new_epoch_nonce BLOB\n\
+  \) STRICT;\n\
+  \\n\
   \CREATE TABLE epoch_nonce (\n\
   \  epoch_no INTEGER PRIMARY KEY,\n\
-  \  nonce BLOB NOT NULL\n\
+  \  nonce BLOB,\n\
+  \  block_id INTEGER NOT NULL\n\
   \) STRICT;\n\
+  \CREATE INDEX epoch_nonce_block ON epoch_nonce (block_id);\n\
+  \\n\
+  \CREATE TABLE max_tx_size_sighting (\n\
+  \  block_id INTEGER NOT NULL,\n\
+  \  proposal TEXT NOT NULL,\n\
+  \  proposed_value INTEGER NOT NULL,\n\
+  \  earliest_epoch INTEGER NOT NULL,\n\
+  \  PRIMARY KEY (block_id, proposal)\n\
+  \) STRICT, WITHOUT ROWID;\n\
   \\n\
   \CREATE TABLE epoch_param (\n\
   \  epoch_no INTEGER PRIMARY KEY,\n\
   \  max_tx_size INTEGER NOT NULL\n\
+  \) STRICT;\n\
+  \\n\
+  \CREATE TABLE epoch_stake (\n\
+  \  epoch_no INTEGER PRIMARY KEY,\n\
+  \  complete INTEGER NOT NULL,\n\
+  \  source TEXT NOT NULL\n\
   \) STRICT;\n\
   \\n\
   \CREATE TABLE pool_stake (\n\

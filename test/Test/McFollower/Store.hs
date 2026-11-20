@@ -1,9 +1,21 @@
 module Test.McFollower.Store (tests) where
 
+import Cardano.Crypto.Hash (hashFromBytes)
+import Cardano.Ledger.BaseTypes (Nonce (..), mkNonceFromNumber)
+import Cardano.Ledger.Coin (Coin (..))
+import Cardano.Ledger.Keys (KeyHash (..))
 import Control.Exception (try)
 import Control.Monad (forM_)
+import Data.ByteString qualified as BS
 import Data.ByteString.Short qualified as SBS
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Text qualified as Text
+import Data.Word (Word64)
+import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), parseProposalRef)
+import McFollower.EpochData.Stake (EpochStake (..), StakeSource (..))
+import McFollower.EpochData.Store (EpochDataStore (..))
+import McFollower.Nonce (Checkpoint (..), EpochNonce (..))
 import McFollower.Extract (BlockRows (..), OutRef (..), OutputRow (..), TxRows (..))
 import McFollower.Block (Block)
 import McFollower.Store
@@ -29,7 +41,7 @@ tests =
     , testCase "intersection points" intersections
     , testCase "reopening checks identity and schema" reopen
     , testCase "refuses foreign and other-version databases" foreignDatabases
-    , testCase "epoch data is written and replaced" epochData
+    , testCase "epoch data: with blocks, pruned to the volatile window, rolled back" epochData
     ]
 
 pointOf :: BlockRows -> Point Block
@@ -132,19 +144,56 @@ reopen = withTestStore $ \path store -> do
     other -> assertFailure ("expected StartPointMismatch, got " <> show (fmap (const ()) other))
   closeStore reopened
 
+-- Made-up checkpoints on made-up blocks 1 to 8 (k = 5): written with the
+-- blocks, pruned to the volatile window, undone by rollbacks.
 epochData :: IO ()
 epochData = withTestStore $ \_ store -> do
-  putEpochNonce store (EpochNo 3) "nonce3"
-  putEpochNonce store (EpochNo 3) "nonce3b"
-  putMaxTxSize store (EpochNo 3) 16384
-  putPoolStake store (EpochNo 3) (Map.fromList [("pool-b", 2), ("pool-a", maxBound)])
-  putPoolStake store (EpochNo 3) (Map.fromList [("pool-c", 1)])
-  tables <- dumpTables store
-  forM_ tables $ \(name, rows) -> case name of
-    "epoch_nonce" -> length rows @?= 1
-    "epoch_param" -> length rows @?= 1
-    "pool_stake" -> length rows @?= 1
-    _ -> pure ()
+  let cp n new = Checkpoint (pointOfBlock n) (madeUpState n) new
+      nonce n = mkNonceFromNumber (100 + n)
+      newNonce n = case n of
+        4 -> Just (EpochNonce (EpochNo 1) (nonce 4))
+        7 -> Just (EpochNonce (EpochNo 2) NeutralNonce)
+        _ -> Nothing
+      proposal = either error id (parseProposalRef (Text.replicate 64 "a" <> "#0"))
+      sighting = MaxTxSizeSighting proposal (pointOfBlock 6) 16400 (EpochNo 3)
+      load f = withEpochData store f
+  withEpochData store $ \eds -> storeCheckpoint eds (cp 0 (Just (EpochNonce (EpochNo 0) (nonce 0))))
+  forM_ (chainFrom [(n, []) | n <- [1 .. 8]]) $ \rows -> do
+    let n = fromMaybe (error "a numbered block") (brNumber rows)
+    applyBlockWith store rows $ \eds -> do
+      storeCheckpoint eds (cp n (newNonce n))
+      storeSightings eds [sighting | n == 6]
+  map cpPoint <$> load loadCheckpoints >>= (@?= map pointOfBlock [3 .. 8])
+  load loadCheckpoints >>= (@?= [cp n (newNonce n) | n <- [3 .. 8]])
+  mapM (\e -> load (\eds -> loadEpochNonce eds (EpochNo e))) [0, 1, 2, 3] >>= (@?= [Just (nonce 0), Just (nonce 4), Just NeutralNonce, Nothing])
+  load loadSightings >>= (@?= [sighting])
+  -- A checkpoint for a block that is not stored fails the whole block.
+  try (applyBlockWith store (blockRows 9 []) (\eds -> storeCheckpoint eds (cp 10 Nothing))) >>= \case
+    Left UnknownEpochDataPoint {} -> pure ()
+    other -> assertFailure ("expected UnknownEpochDataPoint, got " <> show (fmap (const ()) other))
+  tipPoint store >>= (@?= Just (pointOfBlock 8))
+  _ <- rollBackTo store (pointOfBlock 3)
+  load loadCheckpoints >>= (@?= [cp 3 Nothing])
+  mapM (\e -> load (\eds -> loadEpochNonce eds (EpochNo e))) [0, 1, 2] >>= (@?= [Just (nonce 0), Nothing, Nothing])
+  load loadSightings >>= (@?= [])
+  -- Stake and maxTxSize are per epoch, not rolled back; a complete
+  -- distribution is not replaced by an incomplete one.
+  let pool b = KeyHash (fromMaybe (error "28 bytes") (hashFromBytes (BS.replicate 28 b)))
+      stake complete pools = EpochStake (EpochNo 3) (Map.fromList pools) complete (FromMithril (EpochNo 1) "cert")
+  withEpochData store $ \eds -> storeStake eds (stake False [(pool 1, Coin 5)])
+  load (\eds -> loadStake eds (EpochNo 3)) >>= (@?= Nothing)
+  withEpochData store $ \eds -> storeStake eds (stake True [(pool 2, Coin 7), (pool 1, Coin (toInteger (maxBound :: Word64)))])
+  withEpochData store $ \eds -> storeStake eds (stake False [(pool 3, Coin 1)])
+  load (\eds -> loadStake eds (EpochNo 3)) >>= (@?= Just (Map.fromList [(pool 1, Coin (toInteger (maxBound :: Word64))), (pool 2, Coin 7)]))
+  withEpochData store $ \eds -> storeMaxTxSize eds (EpochNo 3) 16384 >> storeMaxTxSize eds (EpochNo 3) 16385
+  load (\eds -> loadMaxTxSize eds (EpochNo 3)) >>= (@?= Just 16385)
+  load (\eds -> loadMaxTxSize eds (EpochNo 4)) >>= (@?= Nothing)
+  _ <- rollBackTo store startPoint
+  load (\eds -> loadStake eds (EpochNo 3)) >>= (@?= Just (Map.fromList [(pool 1, Coin (toInteger (maxBound :: Word64))), (pool 2, Coin 7)]))
+  -- The start point's checkpoint survives a rollback to the start point;
+  -- it was pruned here, so none is left.
+  load loadCheckpoints >>= (@?= [])
+  load (\eds -> loadEpochNonce eds (EpochNo 0)) >>= (@?= Just (nonce 0))
 
 foreignDatabases :: IO ()
 foreignDatabases = withSystemTempDirectory "mc-follower-test" $ \dir -> do

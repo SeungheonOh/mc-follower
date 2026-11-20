@@ -1,14 +1,12 @@
 module Test.McFollower.Query (tests) where
 
 import Data.ByteString (ByteString)
-import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
 import McFollower.Extract (BlockRows (..), OutputRow (..), TxRows (..))
-import Cardano.Slotting.Slot (EpochNo (..))
 import McFollower.Query
 import Control.Exception (bracket)
-import McFollower.Store (Snapshot, Store, applyBlock, closeStore, openStoreReadOnly, putEpochNonce, putMaxTxSize, putPoolStake, withSnapshot)
+import McFollower.Store (Snapshot, Store, applyBlock, closeStore, openStoreReadOnly, withSnapshot)
 import Test.McFollower.Chain
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (testCase, (@?=))
@@ -129,11 +127,6 @@ tests =
                   map aoInputs rows1 @?= [[], [], [OutRef "aa" 2, OutRef "zz" 1], [OutRef "aa" 2, OutRef "zz" 1]]
                   map aoPos <$> q (getUnspentOutputsAtAddress "map" 2) >>= (@?= [(1, 0, 2), (1, 1, 0)])
                   q (getUnspentOutputsAtAddress "map" 0) >>= (@?= [])
-              , testCase "epoch nonce and stake distribution" $ do
-                  q (getEpochNonce 1) >>= (@?= Just "nonce1")
-                  q (getEpochNonce 2) >>= (@?= Nothing)
-                  q (getStakeDistribution 1) >>= (@?= [("pa", 1), ("pb", maxBound)])
-                  q (getStakeDistribution 2) >>= (@?= [])
               ]
           , testGroup
               "cNIGHT"
@@ -189,10 +182,10 @@ tests =
                   map asSpendingTxHash (take 1 rows) @?= [txHash 2 0]
                   map asSpent <$> q (getAssetSpends night (Window (Position 12 0) (Position 12 1)) (Page 2 1))
                     >>= (@?= [OutRef (txHash 2 0) 1, OutRef (txHash 10 0) 0])
-              , testCase "max tx size by block's epoch" $ do
-                  q (getMaxTxSize 3) >>= (@?= Just 16384)
-                  q (getMaxTxSize 11) >>= (@?= Nothing)
-                  q (getMaxTxSize 99) >>= (@?= Nothing)
+              , testCase "epoch of a block (for max tx size)" $ do
+                  q (getBlockEpoch 3) >>= (@?= Just 0)
+                  q (getBlockEpoch 11) >>= (@?= Just 1)
+                  q (getBlockEpoch 99) >>= (@?= Nothing)
               ]
           , testGroup
               "governance"
@@ -236,7 +229,4 @@ setup :: IO (FilePath, Store)
 setup = do
   (path, store) <- newTestStore
   mapM_ (applyBlock store) chain
-  putMaxTxSize store (EpochNo 0) 16384
-  putEpochNonce store (EpochNo 1) "nonce1"
-  putPoolStake store (EpochNo 1) (Map.fromList [("pb", maxBound), ("pa", 1)])
   pure (path, store)

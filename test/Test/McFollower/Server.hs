@@ -14,7 +14,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.ProtoLens.Labels ()
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64, Word8)
@@ -22,7 +22,19 @@ import Cardano.Slotting.Slot (EpochNo (..))
 import McFollower.Extract (BlockRows (..), OutRef (..), OutputRow (..), TxRows (..))
 import McFollower.Server (ServerConfig (..), SyncStatus (..), notFollowing, withServer)
 import McFollower.Server.Proto qualified as P
-import McFollower.Store (Store, applyBlock, closeStore, putEpochNonce, putMaxTxSize, putPoolStake)
+import Cardano.Crypto.Hash (hashFromBytes)
+import Cardano.Ledger.BaseTypes (Nonce (..))
+import Cardano.Ledger.Coin (Coin (..))
+import Cardano.Ledger.Keys (KeyHash (..), KeyRole (StakePool))
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), MaxTxSizeTable (..), ProposalRef, parseProposalRef)
+import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..), healthy)
+import McFollower.EpochData.Stake (EpochStake (..), SnapshotLabel (..), StakeSource (..))
+import McFollower.EpochData.Store (EpochDataStore (..))
+import McFollower.EpochNonceTable (NonceTable (..))
+import McFollower.Nonce (Checkpoint (..), EpochNonce (..))
+import McFollower.Store (Store, applyBlock, applyBlockWith, closeStore, withEpochData)
 import McFollower.Sync (UpstreamTip (..))
 import McFollower.WatchSet (AssetId (..), BridgeWatch (..), GovernanceBody (..), WatchConfig (..))
 import Network.GRPC.Client (Address (..), Server (..), rpc, withConnection)
@@ -35,7 +47,7 @@ import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.McFollower.Chain
 import Test.Tasty (TestTree, testGroup, withResource)
-import Test.Tasty.HUnit (Assertion, assertFailure, testCase, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, testCase, (@?=))
 
 -- Policies are 28 bytes on the wire: cNIGHT, the mapping auth token, the
 -- council, and one nobody watches.
@@ -116,17 +128,49 @@ chain =
     , (12, [spending [(2, 0, 1), (10, 0, 0), (2, 0, 0)] (tx 12 0)])
     ]
 
+-- Epoch data on the chain above (epochs 0 and 1): the shipped nonce table
+-- covers epoch 0, the driver produced epoch 1's at block 10, a local node
+-- gave maxTxSize for epoch 0, the table covers epoch 1 but a proposal
+-- sighted in block 5 could change it from epoch 1 on; stake is complete
+-- for epoch 1 and incomplete for epoch 2; epoch 0 is before Shelley.
 setup :: IO (FilePath, Store)
 setup = do
   (path, store) <- newTestStore
-  mapM_ (applyBlock store) chain
-  putMaxTxSize store (EpochNo 0) 16384
-  putEpochNonce store (EpochNo 1) (hash32 0xee 1)
-  putPoolStake store (EpochNo 1) (Map.fromList [(policy 0x02, maxBound), (policy 0x01, 1)])
+  mapM_ (applyBlock store) (take 9 chain)
+  applyBlockWith store (chain !! 9) $ \eds ->
+    storeCheckpoint eds (Checkpoint (pointOfBlock 10) (madeUpState 10) (Just (EpochNonce (EpochNo 1) (nonceOf 0xee))))
+  mapM_ (applyBlock store) (drop 10 chain)
+  withEpochData store $ \eds -> do
+    storeMaxTxSize eds (EpochNo 0) 16384
+    storeSightings eds [MaxTxSizeSighting sightedProposal (pointOfBlock 5) 16400 (EpochNo 1)]
+    storeStake eds (EpochStake (EpochNo 1) (Map.fromList [(poolKey 0x02, Coin (toInteger (maxBound :: Word64))), (poolKey 0x01, Coin 1)]) True (FromMithril (EpochNo 0) "c"))
+    storeStake eds (EpochStake (EpochNo 2) (Map.fromList [(poolKey 0x01, Coin 1)]) False (FromNodeSnapshot Mark (EpochNo 1)))
   pure (path, store)
 
+nonceOf :: Word8 -> Nonce
+nonceOf b = Nonce (fromMaybe (error "32 bytes") (hashFromBytes (hash32 b 1)))
+
+poolKey :: Word8 -> KeyHash StakePool
+poolKey b = KeyHash (fromMaybe (error "28 bytes") (hashFromBytes (policy b)))
+
+sightedProposal :: ProposalRef
+sightedProposal = either error id (parseProposalRef (Text.replicate 64 "b" <> "#0"))
+
+epochDataConfig :: IO EpochHealth -> EpochDataConfig
+epochDataConfig health =
+  EpochDataConfig
+    { edcNonceTable = NonceTable (EpochNo 0) (EpochNo 0) (Map.singleton (EpochNo 0) (nonceOf 0xe0))
+    , edcMaxTxSize = MaxTxSizeTable [(EpochNo 1, 16384)]
+    , edcAcknowledged = Set.empty
+    , edcFirstShelleyEpoch = EpochNo 1
+    , edcHealth = health
+    }
+
 config :: FilePath -> IO SyncStatus -> ServerConfig
-config path status =
+config path status = configWith path status (pure healthy)
+
+configWith :: FilePath -> IO SyncStatus -> IO EpochHealth -> ServerConfig
+configWith path status health =
   ServerConfig
     { svHost = "127.0.0.1"
     , svPort = 0
@@ -135,6 +179,7 @@ config path status =
     , svWatch = watch
     , svConnections = 4
     , svSyncStatus = status
+    , svEpochData = epochDataConfig health
     , svLog = \_ -> pure ()
     }
 
@@ -158,6 +203,10 @@ tests =
           fmap (^. #blockNo) (s ^. #maybe'immutableTip) @?= Just 7
           fmap (^. #blockNo) (s ^. #maybe'startBlock) @?= Just 1
           (s ^. #securityParameter, s ^. #networkMagic, s ^. #backfilling) @?= (5, 42, [])
+          backfilling <- withServer (configWith path (pure notFollowing) (pure healthy {ehMissingStake = [EpochNo 2]})) $ \port ->
+            withConnection def (ServerInsecure (Address "127.0.0.1" port Nothing)) $ \c ->
+              getProto <$> nonStreaming c (rpc @P.GetStatus) (Proto defMessage)
+          (backfilling ^. #backfilling, backfilling ^. #syncing) @?= (["stake-distribution:epoch:2"], True)
           (s ^. #syncing, s ^. #maybe'upstreamTipSlot, s ^. #maybe'upstreamTipBlockNo) @?= (False, Nothing, Nothing)
           writeIORef status (SyncStatus True Nothing)
           (^. #syncing) <$> get >>= (@?= True)
@@ -199,10 +248,15 @@ tests =
               stable 3 >>= (@?= Just (-1))
               stable 2 >>= (@?= Just 0)
               stable 20 >>= (@?= Nothing)
-          , testCase "stake distribution by pool hash" $ do
-              rows <- call getStore (\c -> streamed c (rpc @P.GetStakeDistribution) (defMessage & #epochNo .~ 1))
+          , testCase "stake distribution: complete only, by pool hash; UNAVAILABLE until obtained" $ do
+              let stake e = call getStore (\c -> streamed c (rpc @P.GetStakeDistribution) (defMessage & #epochNo .~ e))
+              rows <- stake 1
               map (\r -> (r ^. #poolHash, r ^. #stake)) rows @?= [(policy 0x01, 1), (policy 0x02, maxBound)]
-              call getStore (\c -> streamed c (rpc @P.GetStakeDistribution) (defMessage & #epochNo .~ 2)) >>= (@?= [])
+              -- Before the first Shelley epoch db-sync has no rows either.
+              stake 0 >>= (@?= [])
+              -- Incomplete, and not obtained at all.
+              expectCode GrpcUnavailable (stake 2)
+              expectCode GrpcUnavailable (stake 7)
           , testCase "token output: datum set only when resolvable" $ do
               let token name epoch = (^. #maybe'output) <$> call getStore (\c -> unary c (rpc @P.GetLatestTokenOutputForEpoch) (defMessage & #asset .~ assetMessage govPolicy name & #epochNo .~ epoch))
               a <- token "a" 0
@@ -220,10 +274,19 @@ tests =
                       & #datum .~ (defMessage & #cbor .~ "DG1")
                   )
               token "zz" 1 >>= (@?= Nothing)
-          , testCase "epoch nonce" $ do
+          , testCase "epoch nonce: table, then driver; UNAVAILABLE when not known" $ do
               let nonce e = (^. #maybe'nonce) <$> call getStore (\c -> unary c (rpc @P.GetEpochNonce) (defMessage & #epochNo .~ e))
+              nonce 0 >>= (@?= Just (hash32 0xe0 1))
               nonce 1 >>= (@?= Just (hash32 0xee 1))
-              nonce 0 >>= (@?= Nothing)
+              expectCode GrpcUnavailable (nonce 2)
+          , testCase "epoch nonce: the driver's withheld while it diverges from the node" $ do
+              (path, _) <- getStore
+              let diverged = pure healthy {ehNonceDivergence = Just "at some point"}
+                  nonce c e = (^. #maybe'nonce) . getProto <$> nonStreaming c (rpc @P.GetEpochNonce) (Proto (defMessage & #epochNo .~ e))
+              withServer (configWith path (pure notFollowing) diverged) $ \port ->
+                withConnection def (ServerInsecure (Address "127.0.0.1" port Nothing)) $ \c -> do
+                  nonce c 0 >>= (@?= Just (hash32 0xe0 1))
+                  expectCode GrpcUnavailable (nonce c 1)
           , testCase "unspent outputs at an address, with inputs and optional datums" $ do
               rows <- call getStore (\c -> streamed c (rpc @P.GetUnspentOutputsAtAddress) (defMessage & #address .~ "map" & #blockNo .~ 1))
               map (\r -> (r ^. #txBlockNo, r ^. #txIndexInBlock, r ^. #utxoIndex)) rows @?= [(1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1)]
@@ -257,10 +320,13 @@ tests =
               rows <- call getStore (\c -> streamed c (rpc @P.GetAssetSpends) (defMessage & #asset .~ assetMessage nightPolicy "" & #window .~ windowMessage (12, 0) (12, 1) & #limit .~ 2 & #offset .~ 1))
               map (\r -> (r ^. #blockNo, r ^. #utxoTxHash, r ^. #utxoIndex, r ^. #quantity, r ^. #spendingTxHash)) rows
                 @?= [(12, txHash 2 0, 1, 40, txHash 12 0), (12, txHash 10 0, 0, 7, txHash 12 0)]
-          , testCase "max tx size" $ do
+          , testCase "max tx size: node value, table gated by a sighted proposal" $ do
               let size b = (^. #maybe'maxTxSize) <$> call getStore (\c -> unary c (rpc @P.GetMaxTxSize) (defMessage & #blockNo .~ b))
               size 3 >>= (@?= Just 16384)
-              size 11 >>= (@?= Nothing)
+              try (size 11) >>= \case
+                Left GrpcException {grpcError = GrpcUnavailable, grpcErrorMessage = Just m} ->
+                  assertBool (show m) (("proposal " <> Text.replicate 64 "b" <> "#0") `Text.isInfixOf` m)
+                other -> assertFailure ("expected UNAVAILABLE naming the proposal, got " <> show (fmap (const ()) other))
           ]
       , testGroup
           "governance and bridge"

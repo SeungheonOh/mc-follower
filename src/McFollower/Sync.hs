@@ -2,15 +2,23 @@
 
 -- | The sync loop: follow a 'BlockSource' from the store's intersection
 -- points, extract every block and apply it, and undo blocks on rollback.
+--
+-- Every applied block also goes, in the same store transaction, through
+-- the @maxTxSize@ tripwire scan and the nonce driver
+-- ("McFollower.EpochData.Driver"); every rollback undoes both (the store
+-- drops what the undone blocks produced, the driver returns to its state at
+-- the rollback point).
 module McFollower.Sync
   ( SyncConfig (..)
   , UpstreamTip (..)
   , SyncTrace (..)
   , Progress (..)
   , SyncStopped (..)
+  , SyncEpochData (..)
   , runSync
   ) where
 
+import Cardano.Slotting.Slot (EpochNo (..))
 import Control.Exception (Exception, throwIO, try)
 import Control.Monad (when)
 import Control.Tracer (Tracer, traceWith)
@@ -20,11 +28,17 @@ import Data.Void (absurd)
 import Data.Word (Word64)
 import McFollower.Block (Block)
 import McFollower.BlockSource (BlockSource (..), ChainEvent (..))
+import McFollower.EpochData.Driver (DriverState (..), feedBackward, feedForward)
+import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting, scanBlock)
+import McFollower.EpochData.Store (EpochDataError, EpochDataStore (..))
+import McFollower.EpochNonceTable (NonceTable)
 import McFollower.EraHistory (EraHistory)
 import McFollower.Extract (BlockRows (..), TxRows (..), extractBlock)
-import McFollower.Store (Store, applyBlock, intersectionPoints, rollBackTo)
+import McFollower.Nonce (Checkpoint (..), EpochNonce (..), NonceConfig, driverTip)
+import McFollower.Store (Store, applyBlockWith, intersectionPoints, rollBackTo)
 import McFollower.WatchSet (WatchFilter)
-import Ouroboros.Consensus.Block (Point, blockPoint)
+import Ouroboros.Consensus.Block (Point, blockPoint, getHeader)
+import Ouroboros.Consensus.Cardano.Node ()
 import Ouroboros.Consensus.HardFork.History (PastHorizonException)
 import Ouroboros.Network.Block (Tip (..), getTipBlockNo)
 import Cardano.Slotting.Block (BlockNo (..))
@@ -39,6 +53,16 @@ data SyncConfig = SyncConfig
   , scOnUpstreamTip :: !(Maybe UpstreamTip -> IO ())
   -- ^ Called with the upstream's tip after each event has been applied to
   -- the store ('Nothing' while the upstream chain is empty).
+  , scEpochData :: !SyncEpochData
+  }
+
+-- | The nonce driver and tripwire side of the sync loop.
+data SyncEpochData = SyncEpochData
+  { sedNonceConfig :: !NonceConfig
+  , sedNonceTable :: !NonceTable
+  , sedDriver :: !(IORef DriverState)
+  -- ^ The driver's state, starting from 'McFollower.EpochData.Driver.startDriverState'
+  -- and kept up to date by the loop (others may read it).
   }
 
 -- | The upstream's tip as chain-sync last reported it.
@@ -67,11 +91,22 @@ data SyncTrace
   | TraceRolledBack !(Point Block) !Int
   -- ^ Blocks undone.
   | TraceProgress !Progress
-  deriving stock (Show)
+  | TraceDriverStarted !(Point Block)
+  -- ^ The nonce driver started from its trusted state at this block.
+  | TraceDriverStopped !(Point Block) !Bool
+  -- ^ A rollback to this point went below the driver's start: pending on
+  -- its trusted state again ('True'), or off (it is no longer known).
+  | TraceEpochNonce !EpochNo !(Point Block)
+  -- ^ The driver produced the nonce of an epoch at this block.
+  | TraceSightings ![MaxTxSizeSighting]
+  -- ^ Proposals that could change @maxTxSize@.
 
 data SyncStopped
   = StoppedAfter !Word64
   | SlotOutsideEraHistory !(Point Block) !PastHorizonException
+  | EpochDataFailed !(Point Block) !EpochDataError
+  -- ^ The nonce driver or the shipped nonce table refused the block or
+  -- rollback at this point.
   deriving stock (Show)
 
 instance Exception SyncStopped
@@ -94,14 +129,38 @@ runSync tracer SyncConfig {..} source store = do
   traceWith tracer (TraceIntersecting points)
   now <- getCurrentTime
   countersVar <- newIORef (Counters now Nothing Nothing 0 0 0 0)
-  let handler = \case
+  let SyncEpochData {sedNonceConfig, sedNonceTable, sedDriver} = scEpochData
+      handler = \case
         RollBackward point tip -> do
           undone <- rollBackTo store point
+          before <- readIORef sedDriver
+          after <- either (throwIO . EpochDataFailed point) pure (feedBackward point before)
+          writeIORef sedDriver after
+          case (before, after) of
+            (DriverActive {}, DriverPending _) -> traceWith tracer (TraceDriverStopped point True)
+            (DriverActive {}, DriverOff) -> traceWith tracer (TraceDriverStopped point False)
+            _ -> pure ()
           traceWith tracer (TraceRolledBack point undone)
           noteUpstream countersVar tip
         RollForward blk tip -> do
           rows <- either (throwIO . SlotOutsideEraHistory (blockPoint blk)) pure (extractBlock scWatchFilter scEraHistory blk)
-          applyBlock store rows
+          let sightings = scanBlock (EpochNo (brEpoch rows)) blk
+          before <- readIORef sedDriver
+          after <- applyBlockWith store rows $ \eds -> do
+            storeSightings eds sightings
+            feedForward sedNonceConfig sedNonceTable eds (getHeader blk) before
+              >>= either (throwIO . EpochDataFailed (blockPoint blk)) pure
+          writeIORef sedDriver after
+          case (before, after) of
+            (DriverPending _, DriverActive {}) -> traceWith tracer (TraceDriverStarted (blockPoint blk))
+            _ -> pure ()
+          case after of
+            DriverActive _ d
+              | Checkpoint {cpPoint, cpNewEpochNonce = Just en} <- driverTip d
+              , cpPoint == blockPoint blk ->
+                  traceWith tracer (TraceEpochNonce (enEpoch en) cpPoint)
+            _ -> pure ()
+          when (not (null sightings)) $ traceWith tracer (TraceSightings sightings)
           noteUpstream countersVar tip
           total <- recordBlock countersVar rows
           report countersVar False

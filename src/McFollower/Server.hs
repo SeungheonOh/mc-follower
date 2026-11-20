@@ -24,7 +24,10 @@
 --   a node sends is derived from earlier answers of this indexer (its latest
 --   block or a block found by hash), so a bound beyond the tip means the
 --   index lost blocks in between (a rollback), and answering with what is
---   indexed would silently drop rows.
+--   indexed would silently drop rows. Also: epoch data the indexer does not
+--   know yet (an epoch nonce or stake distribution it expects to obtain, a
+--   @maxTxSize@ gated by an unacknowledged proposal); see
+--   "McFollower.EpochData.Serve".
 -- * @INTERNAL@: anything else.
 --
 -- Absent rows are ordinary responses: unset optional fields or empty
@@ -63,10 +66,20 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Word (Word16, Word32, Word64)
+import Cardano.Slotting.Slot (EpochNo (..))
+import McFollower.EpochData.Serve
+  ( EpochAnswer (..)
+  , EpochDataConfig (..)
+  , EpochHealth (..)
+  , answerEpochNonce
+  , answerMaxTxSize
+  , answerStake
+  )
+import McFollower.EpochData.Store (EpochDataStore (..))
 import McFollower.Query qualified as Q
 import McFollower.Server.Pool (Pool, closePool, newPool, withPooled)
 import McFollower.Server.Proto qualified as P
-import McFollower.Store (Snapshot, StoreIdentity (..), checkIdentity, closeStore, openStoreReadOnly, withSnapshot)
+import McFollower.Store (Snapshot, StoreIdentity (..), checkIdentity, closeStore, openStoreReadOnly, snapshotEpochData, withSnapshot)
 import McFollower.Sync (UpstreamTip (..))
 import McFollower.WatchSet (BridgeWatch (..), WatchConfig (..), isWatchedAddress, isWatchedPolicy, recordsInputLists)
 import Network.GRPC.Common (GrpcError (..), GrpcException (..), NextElem (..), def)
@@ -92,6 +105,7 @@ data ServerConfig = ServerConfig
   , svConnections :: !Int
   -- ^ At most this many requests are answered at once.
   , svSyncStatus :: !(IO SyncStatus)
+  , svEpochData :: !EpochDataConfig
   , svLog :: !(Text -> IO ())
   -- ^ Requests that failed other than with a status the server chose
   -- (internal errors, disconnects).
@@ -300,7 +314,12 @@ getStatus env@Env {envConfig = ServerConfig {..}} _ = do
   let k = siSecurityParam svIdentity
   Q.IndexStatus {..} <- reading env (Q.getIndexStatus (fromIntegral k))
   SyncStatus {..} <- svSyncStatus
-  let syncing = ssFollowing && maybe True (\up -> maybe True ((< utBlockNo up) . fromIntegral . Q.biNumber) isTip) ssUpstreamTip
+  EpochHealth {ehMissingStake} <- edcHealth svEpochData
+  let behind = ssFollowing && maybe True (\up -> maybe True ((< utBlockNo up) . fromIntegral . Q.biNumber) isTip) ssUpstreamTip
+      -- Stake distributions being fetched are backfills in the proto's
+      -- sense: GetStakeDistribution for them answers UNAVAILABLE.
+      stakeBackfills = ["stake-distribution:epoch:" <> showText e | EpochNo e <- ehMissingStake]
+      syncing = behind || not (null stakeBackfills)
   pure $
     defMessage
       & #maybe'tip .~ fmap block isTip
@@ -310,7 +329,7 @@ getStatus env@Env {envConfig = ServerConfig {..}} _ = do
       & #maybe'upstreamTipSlot .~ fmap utSlot ssUpstreamTip
       & #maybe'upstreamTipBlockNo .~ fmap (fromIntegral . utBlockNo) ssUpstreamTip
       & #maybe'startBlock .~ fmap block isStartBlock
-      & #backfilling .~ []
+      & #backfilling .~ stakeBackfills
       & #networkMagic .~ siNetworkMagic svIdentity
 
 getLatestBlock :: Env -> P.GetLatestBlockRequest -> IO P.OptionalBlock
@@ -395,9 +414,12 @@ getLatestStableEpoch env req =
 
 getStakeDistribution :: Env -> P.GetStakeDistributionRequest -> (P.StakePoolEntry -> IO ()) -> IO ()
 getStakeDistribution env req send =
-  answering env $ \_ snap ->
-    Q.eachPoolStake (req ^. #epochNo) snap $ \(pool, stake) ->
-      send (defMessage & #poolHash .~ pool & #stake .~ stake)
+  answering env $ \_ snap -> do
+    let epoch = EpochNo (fromIntegral (req ^. #epochNo))
+        EpochDataConfig {edcFirstShelleyEpoch} = svEpochData (envConfig env)
+    stored <- loadStake (snapshotEpochData snap) epoch
+    rows <- epochAnswer (answerStake edcFirstShelleyEpoch stored epoch)
+    mapM_ (\(pool, stake) -> send (defMessage & #poolHash .~ pool & #stake .~ stake)) rows
 
 getLatestTokenOutputForEpoch :: Env -> P.GetLatestTokenOutputForEpochRequest -> IO P.GetLatestTokenOutputForEpochResponse
 getLatestTokenOutputForEpoch env req = do
@@ -421,7 +443,11 @@ getLatestTokenOutputForEpoch env req = do
 getEpochNonce :: Env -> P.GetEpochNonceRequest -> IO P.GetEpochNonceResponse
 getEpochNonce env req =
   answering env $ \_ snap -> do
-    nonce <- Q.getEpochNonce (req ^. #epochNo) snap
+    let epoch = EpochNo (fromIntegral (req ^. #epochNo))
+        EpochDataConfig {edcNonceTable, edcHealth} = svEpochData (envConfig env)
+    EpochHealth {ehNonceDivergence} <- edcHealth
+    fromDriver <- loadEpochNonce (snapshotEpochData snap) epoch
+    nonce <- epochAnswer (answerEpochNonce edcNonceTable ehNonceDivergence fromDriver epoch)
     pure (defMessage & #maybe'nonce .~ nonce)
 
 getUnspentOutputsAtAddress :: Env -> P.GetUnspentOutputsAtAddressRequest -> (P.AddressOutputRow -> IO ()) -> IO ()
@@ -530,7 +556,17 @@ getMaxTxSize :: Env -> P.GetMaxTxSizeRequest -> IO P.GetMaxTxSizeResponse
 getMaxTxSize env req =
   answering env $ \tip snap -> do
     withinTip tip "the block" (req ^. #blockNo)
-    size <- Q.getMaxTxSize (req ^. #blockNo) snap
+    let EpochDataConfig {edcMaxTxSize, edcAcknowledged} = svEpochData (envConfig env)
+        eds = snapshotEpochData snap
+    size <-
+      Q.getBlockEpoch (req ^. #blockNo) snap >>= \case
+        -- db-sync: no block, no row.
+        Nothing -> pure Nothing
+        Just e -> do
+          let epoch = EpochNo (fromIntegral e)
+          fromNode <- loadMaxTxSize eds epoch
+          sightings <- loadSightings eds
+          epochAnswer (answerMaxTxSize edcMaxTxSize edcAcknowledged sightings fromNode epoch)
     pure (defMessage & #maybe'maxTxSize .~ size)
 
 getLatestGovernanceOutput :: Env -> P.GetLatestGovernanceOutputRequest -> IO P.GetLatestGovernanceOutputResponse
@@ -551,6 +587,13 @@ getLatestGovernanceOutput env req = do
       & #txIndex .~ goTxIndex
       & #txHash .~ goTxHash
       & #utxoIndex .~ outputIndex goIndex
+
+-- | An epoch data answer, or the status it calls for.
+epochAnswer :: EpochAnswer a -> IO a
+epochAnswer = \case
+  Answer a -> pure a
+  NotAvailable why -> unavailable why
+  Inconsistent why -> failWith GrpcInternal why
 
 {-------------------------------------------------------------------------------
   Rows to messages

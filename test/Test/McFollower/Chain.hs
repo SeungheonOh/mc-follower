@@ -9,6 +9,8 @@ module Test.McFollower.Chain
   , output
   , chainFrom
   , startPoint
+  , pointOfBlock
+  , madeUpState
 
     -- * Stores
   , withTestStore
@@ -24,7 +26,11 @@ import Data.ByteString.Short qualified as SBS
 import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Word (Word16, Word64, Word8)
+import Cardano.Ledger.BaseTypes (mkNonceFromNumber)
+import Cardano.Slotting.Slot (WithOrigin (..))
+import Data.Map.Strict qualified as Map
 import McFollower.Block (Block)
+import Ouroboros.Consensus.Protocol.Praos (PraosState (..))
 import McFollower.Extract (BlockRows (..), OutputRow (..), TxRows (..))
 import McFollower.Store
 import McFollower.Store.Sql (SQLData, query)
@@ -56,7 +62,25 @@ blockRows n txs =
     }
 
 startPoint :: Point Block
-startPoint = BlockPoint (SlotNo 0) (OneEraHash (SBS.toShort (hash32 0xb0 0)))
+startPoint = pointOfBlock 0
+
+-- | The point of block @n@ of 'blockRows'.
+pointOfBlock :: Word64 -> Point Block
+pointOfBlock n = BlockPoint (SlotNo (10 * n)) (OneEraHash (SBS.toShort (hash32 0xb0 n)))
+
+-- | A made-up Praos state, for storing checkpoints of made-up blocks.
+madeUpState :: Word64 -> PraosState
+madeUpState n =
+  PraosState
+    { praosStateLastSlot = At (SlotNo (10 * n))
+    , praosStateOCertCounters = Map.empty
+    , praosStateEvolvingNonce = mkNonceFromNumber n
+    , praosStateCandidateNonce = mkNonceFromNumber (n + 1)
+    , praosStateEpochNonce = mkNonceFromNumber (n + 2)
+    , praosStatePreviousEpochNonce = mkNonceFromNumber (n + 3)
+    , praosStateLabNonce = mkNonceFromNumber (n + 4)
+    , praosStateLastEpochBlockNonce = mkNonceFromNumber (n + 5)
+    }
 
 -- | Transaction @t@ of block @b@.
 tx :: Word64 -> Int -> TxRows
@@ -95,4 +119,18 @@ dumpTables :: Store -> IO [(Text, [[SQLData]])]
 dumpTables store = withSnapshot store $ \snap ->
   mapM
     (\table -> (table,) . sortOn show <$> query (snapshotConn snap) ("SELECT * FROM " <> table) [])
-    ["meta", "block", "tx", "tx_out", "ma_tx_out", "tx_input", "datum", "tx_metadata", "epoch_nonce", "epoch_param", "pool_stake"]
+    [ "meta"
+    , "block"
+    , "tx"
+    , "tx_out"
+    , "ma_tx_out"
+    , "tx_input"
+    , "datum"
+    , "tx_metadata"
+    , "nonce_checkpoint"
+    , "epoch_nonce"
+    , "max_tx_size_sighting"
+    , "epoch_param"
+    , "epoch_stake"
+    , "pool_stake"
+    ]

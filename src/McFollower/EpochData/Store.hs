@@ -95,6 +95,10 @@ data EpochDataError
   -- ^ The driver produced a nonce for an epoch the shipped table covers,
   -- and the two differ. Either the starting state or the table is wrong;
   -- nothing is recorded for the block.
+  | TrustedPointNotOnChain !(Point Block) !(Point Block)
+  -- ^ The driver waits for the trusted state's point (first), and the sync
+  -- reached a block at that slot or later (second) without passing it: the
+  -- point is not on the followed chain.
   deriving stock (Show)
 
 -- | Record the trusted starting state: its checkpoint, with the epoch

@@ -57,8 +57,11 @@ library
 
   -- Epoch nonce and epoch data.
   exposed-modules:
+    McFollower.EpochData.Driver
     McFollower.EpochData.MaxTxSize
     McFollower.EpochData.Mithril
+    McFollower.EpochData.Producer
+    McFollower.EpochData.Serve
     McFollower.EpochData.Stake
     McFollower.EpochData.Store
     McFollower.EpochNonceTable
@@ -164,6 +167,12 @@ executable mc-follower
     , directory
     , network
 
+  -- Epoch nonce and epoch data.
+  build-depends:
+    , async
+    , bytestring
+    , containers
+
 test-suite mc-follower-test
   import:         warnings, lang
   type:           exitcode-stdio-1.0
@@ -190,6 +199,7 @@ test-suite mc-follower-test
   other-modules:
     Test.McFollower.EpochData
     Test.McFollower.EpochNonceTable
+    Test.McFollower.EpochSync
     Test.McFollower.Fixtures
     Test.McFollower.Nonce
 
@@ -211,6 +221,7 @@ test-suite mc-follower-test
     , cardano-slotting
     , cborg
     , containers
+    , contra-tracer
     , filepath
     , grapesy
     , grpc-spec

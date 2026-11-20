@@ -6,14 +6,15 @@
 module Main (main) where
 
 import Cardano.Slotting.Block (BlockNo (..))
-import Cardano.Slotting.Slot (SlotNo (..))
+import Cardano.Slotting.Slot (EpochNo (..), SlotNo (..))
 import Cardano.Slotting.Time (SystemStart (..))
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (race_)
 import Control.Exception (AsyncException (..), Exception, throwIO, try)
 import Control.Monad (forever, when)
 import Control.Tracer (Tracer (..), emit)
 import Data.Foldable (for_)
-import Data.IORef (atomicModifyIORef', atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (IORef, atomicModifyIORef', atomicWriteIORef, newIORef, readIORef)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -40,7 +41,20 @@ import McFollower.BlockSource
   )
 import McFollower.BlockSource.N2C (LocalNodeConfig (..), n2cBlockSource)
 import McFollower.BlockSource.N2N (n2nBlockSource)
-import McFollower.EraHistory (ChainParams (..), presetHistory)
+import Data.ByteString qualified as BS
+import Data.Set qualified as Set
+import Data.Word (Word32)
+import McFollower.EpochData.Driver (DriverStartError (..), DriverState (..), renderDriverState, startDriverState)
+import McFollower.EpochData.MaxTxSize (MaxTxSizeTable (..), ProposalRef, maxTxSizePreset, parseProposalRef)
+import McFollower.EpochData.Mithril (Aggregator (..), aggregatorFor)
+import McFollower.EpochData.Producer (MithrilSource (..), ProducerConfig (..), ProducerHealth (..), noProblems, runProducers)
+import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..))
+import McFollower.EpochData.Store (EpochDataStore (..))
+import McFollower.EpochNonceTable (nonceTable)
+import McFollower.EraHistory (ChainParams (..), SlotInfo (..), presetHistory, slotInfo)
+import McFollower.LocalStateQuery (queryProtocolState)
+import McFollower.Nonce (nonceConfig)
+import McFollower.Nonce.TrustedState (TrustedState (..), parseTrustedState)
 import McFollower.Extract (TxFeatures (..), blockFeatures)
 import McFollower.LocalStateQuery (QueryTarget (..), querySystemStart)
 import McFollower.Network
@@ -54,8 +68,8 @@ import McFollower.Network
   , parseRelayAddress
   )
 import McFollower.Server (ServerConfig (..), SyncStatus (..), interruptOnTerminate, notFollowing, withServer)
-import McFollower.Store (Store, StoreError, StoreIdentity (..), checkIdentity, closeStore, getStartPoint, openStoreReadOnly, setStartPoint, withStore)
-import McFollower.Sync (Progress (..), SyncConfig (..), SyncTrace (..), UpstreamTip, runSync)
+import McFollower.Store (Store, StoreError, StoreIdentity (..), checkIdentity, closeStore, getStartPoint, openStoreReadOnly, setStartPoint, tipPoint, withEpochData, withStore)
+import McFollower.Sync (Progress (..), SyncConfig (..), SyncEpochData (..), SyncTrace (..), UpstreamTip (..), runSync)
 import McFollower.WatchSet (WatchConfig, WatchFilter, renderWatchConfig, startPointPreset, watchFilter, watchPreset)
 import Network.Socket (HostName, PortNumber)
 import Options.Applicative
@@ -95,6 +109,7 @@ data SyncOptions = SyncOptions
   , soDatabase :: !FilePath
   , soStart :: !(Maybe (Point Block))
   , soLimit :: !(Maybe Word64)
+  , soEpoch :: !EpochOptions
   }
 
 data ServeOptions = ServeOptions
@@ -104,6 +119,19 @@ data ServeOptions = ServeOptions
   , svoDatabase :: !FilePath
   , svoStart :: !(Maybe (Point Block))
   , svoListen :: !(HostName, PortNumber)
+  , svoEpoch :: !EpochOptions
+  }
+
+-- | Epoch nonce and epoch data configuration.
+data EpochOptions = EpochOptions
+  { eoTrustedState :: !(Maybe FilePath)
+  , eoMaxTxSize :: ![(EpochNo, Word32)]
+  -- ^ Entries added to the network's @maxTxSize@ table.
+  , eoAcknowledged :: ![ProposalRef]
+  , eoMithril :: !(Maybe Bool)
+  -- ^ Default: on for node-to-node, off with a local node.
+  , eoAggregator :: !(Maybe Text)
+  , eoBackfill :: !Word32
   }
 
 data FetchOptions = FetchOptions
@@ -143,12 +171,146 @@ blockSource cfg = \case
   LocalSocket path -> n2cBlockSource traceToStderr (LocalNodeConfig cfg path)
 
 sync :: SyncOptions -> IO ()
-sync SyncOptions {soNetwork, soUpstream, soDatabase, soStart, soLimit} = do
+sync SyncOptions {soNetwork, soUpstream, soDatabase, soStart, soLimit, soEpoch} = do
   let (identity, watch) = storeIdentity soNetwork
   wf <- either (die . ("invalid watch set: " <>)) pure (watchFilter watch)
   withStore soDatabase identity $ \store -> do
     prepareStart soNetwork soStart store
-    runSync syncTracer (syncConfig soNetwork wf soLimit (\_ -> pure ())) (blockSource (networkConfig soNetwork) soUpstream) store
+    driverVar <- newIORef DriverOff
+    healthVar <- newIORef noProblems
+    index soNetwork soUpstream soEpoch soDatabase identity wf soLimit (\_ -> pure ()) driverVar healthVar store
+
+-- | Follow the chain into the store, with the nonce driver and the epoch
+-- data producers, until the sync loop returns (after @--blocks@) or fails.
+index
+  :: NetworkName
+  -> Upstream
+  -> EpochOptions
+  -> FilePath
+  -> StoreIdentity
+  -> WatchFilter
+  -> Maybe Word64
+  -> (Maybe UpstreamTip -> IO ())
+  -> IORef DriverState
+  -> IORef ProducerHealth
+  -> Store
+  -> IO ()
+index network upstream eo database identity wf limit onTip driverVar healthVar store = do
+  let cp = chainParams network
+      nonceCfg = nonceConfig cp
+      table = nonceTable network
+      cfg = networkConfig network
+  trusted <- trustedStateFor network upstream eo store
+  start <- startDriverState nonceCfg table store trusted >>= either (die . renderStartError) pure
+  atomicWriteIORef driverVar start
+  hPutStrLn stderr ("nonce driver: " <> Text.unpack (renderDriverState start))
+  upstreamVar <- newIORef Nothing
+  let history = presetHistory cp
+      tipEpoch = do
+        up <- readIORef upstreamVar
+        case up of
+          Just UpstreamTip {utSlot} | Right SlotInfo {siEpoch} <- slotInfo history (SlotNo utSlot) -> pure (Just siEpoch)
+          _ -> pure Nothing
+      mithril = case (eoMithril eo, upstream) of
+        (Just False, _) -> Nothing
+        (Nothing, LocalSocket _) -> Nothing
+        _ ->
+          Just
+            MithrilSource
+              { msAggregator = maybe (aggregatorFor network) Aggregator (eoAggregator eo)
+              , msWindow = eoBackfill eo
+              }
+      producers =
+        runProducers
+          ProducerConfig
+            { pcDatabase = database
+            , pcIdentity = identity
+            , pcNonceConfig = nonceCfg
+            , pcNode = case upstream of
+                LocalSocket path -> Just (LocalNodeConfig cfg path)
+                Relays _ -> Nothing
+            , pcMithril = mithril
+            , pcFirstShelleyEpoch = firstShelleyEpoch network
+            , pcMaxTxSizeTable = maxTxSizeTable network eo
+            , pcTipEpoch = tipEpoch
+            , pcHealth = healthVar
+            , pcLog = hPutStrLn stderr . Text.unpack
+            , pcPoll = 30
+            , pcNodeRefresh = 600
+            }
+      syncEpoch = SyncEpochData {sedNonceConfig = nonceCfg, sedNonceTable = table, sedDriver = driverVar}
+  race_
+    ( runSync
+        syncTracer
+        (syncConfig network wf limit (\t -> atomicWriteIORef upstreamVar t >> onTip t) syncEpoch)
+        (blockSource cfg upstream)
+        store
+    )
+    producers
+
+-- | The trusted protocol state to start the nonce driver from, if it has
+-- no stored checkpoints: with a local node, the node's own state at the
+-- stored tip if the node still has that point in its volatile window;
+-- otherwise the @--trusted-state@ file, if given.
+trustedStateFor :: NetworkName -> Upstream -> EpochOptions -> Store -> IO (Maybe TrustedState)
+trustedStateFor network upstream eo store = do
+  stored <- withEpochData store loadCheckpoints
+  if not (null stored)
+    then do
+      for_ (eoTrustedState eo) $ \path ->
+        hPutStrLn stderr ("nonce driver: resuming from its stored checkpoints; " <> path <> " is not used")
+      pure Nothing
+    else do
+      fromNode <- case upstream of
+        Relays _ -> pure Nothing
+        LocalSocket path ->
+          tipPoint store >>= \case
+            Nothing -> pure Nothing
+            Just tip ->
+              queryProtocolState (LocalNodeConfig (networkConfig network) path) (AtPoint tip) >>= \case
+                Right ts -> do
+                  hPutStrLn stderr ("nonce driver: starting from the node's protocol state at " <> Text.unpack (renderPoint tip))
+                  pure (Just ts)
+                Left e -> do
+                  hPutStrLn stderr ("nonce driver: the node has no protocol state at " <> Text.unpack (renderPoint tip) <> " (" <> show e <> ")")
+                  pure Nothing
+      case (fromNode, eoTrustedState eo) of
+        (Just ts, _) -> pure (Just ts)
+        (Nothing, Nothing) -> pure Nothing
+        (Nothing, Just path) -> either (die . (("cannot read the trusted state in " <> path <> ": ") <>)) (pure . Just) . parseTrustedState =<< BS.readFile path
+
+renderStartError :: DriverStartError -> String
+renderStartError = \case
+  CheckpointsOutOfStep cp tip ->
+    "the stored nonce driver checkpoints end at " <> pt cp <> " but the index ends at " <> pt tip <> "; the database is inconsistent"
+  TrustedStateAlreadyPassed ts tip ->
+    "the trusted state is for " <> pt ts <> ", which the index has already passed (it ends at " <> pt tip
+      <> "); the nonce driver can only start at or after the index tip. Use a trusted state at or after the tip, or a new database whose start point precedes it"
+  TrustedStateNotOnChain ts tip ->
+    "the trusted state is for " <> pt ts <> ", which is not on the indexed chain (it ends at " <> pt tip <> ")"
+  TrustedStateBeforeStart ts start ->
+    "the trusted state is for " <> pt ts <> ", before the index's start point " <> pt start
+  StartFailed e -> "the nonce driver cannot start from the trusted state: " <> show e
+ where
+  pt = Text.unpack . renderPoint
+
+firstShelleyEpoch :: NetworkName -> EpochNo
+firstShelleyEpoch network = case cpHardForks (chainParams network) of
+  e : _ -> e
+  [] -> EpochNo maxBound
+
+maxTxSizeTable :: NetworkName -> EpochOptions -> MaxTxSizeTable
+maxTxSizeTable network eo = let MaxTxSizeTable preset = maxTxSizePreset network in MaxTxSizeTable (preset <> eoMaxTxSize eo)
+
+epochDataConfig :: NetworkName -> EpochOptions -> IO EpochHealth -> EpochDataConfig
+epochDataConfig network eo health =
+  EpochDataConfig
+    { edcNonceTable = nonceTable network
+    , edcMaxTxSize = maxTxSizeTable network eo
+    , edcAcknowledged = Set.fromList (eoAcknowledged eo)
+    , edcFirstShelleyEpoch = firstShelleyEpoch network
+    , edcHealth = health
+    }
 
 -- | The identity a database of a network is created with and checked
 -- against, and the network's watch set.
@@ -175,14 +337,15 @@ prepareStart network from store = do
     (Just _, Just start) | Just _ <- from -> setStartPoint store start
     (Just _, _) -> pure ()
 
-syncConfig :: NetworkName -> WatchFilter -> Maybe Word64 -> (Maybe UpstreamTip -> IO ()) -> SyncConfig
-syncConfig network wf limit onTip =
+syncConfig :: NetworkName -> WatchFilter -> Maybe Word64 -> (Maybe UpstreamTip -> IO ()) -> SyncEpochData -> SyncConfig
+syncConfig network wf limit onTip epochData =
   SyncConfig
     { scWatchFilter = wf
     , scEraHistory = presetHistory (chainParams network)
     , scStopAfter = limit
     , scProgressEvery = 10
     , scOnUpstreamTip = onTip
+    , scEpochData = epochData
     }
 
 syncTracer :: Tracer IO SyncTrace
@@ -192,10 +355,10 @@ syncTracer = Tracer (emit (hPutStrLn stderr . Text.unpack . renderSyncTrace))
 -- unless @--no-sync@ is given. SIGINT and SIGTERM stop both; a block being
 -- applied is rolled back, never half written.
 serve :: ServeOptions -> IO ()
-serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = (host, port)} = do
+serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = (host, port), svoEpoch} = do
   interruptOnTerminate
   let (identity, watch) = storeIdentity svoNetwork
-      server status =
+      server status health =
         ServerConfig
           { svHost = host
           , svPort = port
@@ -204,13 +367,15 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
           , svWatch = watch
           , svConnections = 16
           , svSyncStatus = status
+          , svEpochData = epochDataConfig svoNetwork svoEpoch health
           , svLog = hPutStrLn stderr . Text.unpack
           }
       listening bound = hPutStrLn stderr ("serving gRPC on " <> host <> ":" <> show bound)
   stopped <- try $ case svoUpstream of
     Nothing -> do
       checkExisting identity
-      withServer (server (pure notFollowing)) $ \bound -> do
+      let health = pure (EpochHealth "not run by this process" [] Nothing)
+      withServer (server (pure notFollowing) health) $ \bound -> do
         listening bound
         forever (threadDelay maxBound)
     Just upstream -> do
@@ -218,14 +383,16 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
       withStore svoDatabase identity $ \store -> do
         prepareStart svoNetwork svoStart store
         upstreamTip <- newIORef Nothing
+        driverVar <- newIORef DriverOff
+        healthVar <- newIORef noProblems
         let status = SyncStatus True <$> readIORef upstreamTip
-        withServer (server status) $ \bound -> do
+            health = do
+              driver <- readIORef driverVar
+              ProducerHealth {phMissingStake, phNonceDivergence} <- readIORef healthVar
+              pure (EpochHealth (renderDriverState driver) phMissingStake phNonceDivergence)
+        withServer (server status health) $ \bound -> do
           listening bound
-          runSync
-            syncTracer
-            (syncConfig svoNetwork wf Nothing (atomicWriteIORef upstreamTip))
-            (blockSource (networkConfig svoNetwork) upstream)
-            store
+          index svoNetwork upstream svoEpoch svoDatabase identity wf Nothing (atomicWriteIORef upstreamTip) driverVar healthVar store
   case stopped of
     Left UserInterrupt -> hPutStrLn stderr "stopped"
     Left e -> throwIO e
@@ -249,6 +416,12 @@ renderSyncTrace = \case
       <> (if length points > 3 then ", ... (" <> showText (length points) <> " points)" else "")
   TraceRolledBack point undone ->
     "rolled back to " <> renderPoint point <> " (" <> showText undone <> " blocks undone)"
+  TraceDriverStarted p -> "nonce driver started from its trusted state at " <> renderPoint p
+  TraceDriverStopped p pending ->
+    "rolled back to " <> renderPoint p <> ", before the nonce driver's start; "
+      <> (if pending then "waiting for its trusted state's point again" else "its trusted state is unknown, so it is off")
+  TraceEpochNonce (EpochNo e) p -> "epoch nonce of epoch " <> showText e <> " produced at " <> renderPoint p
+  TraceSightings ss -> "maxTxSize proposals sighted: " <> showText ss
   TraceProgress Progress {..} ->
     Text.unwords
       [ "synced to slot " <> showText pSlot
@@ -393,6 +566,7 @@ syncOptions =
       )
     <*> optional
       (option auto (long "blocks" <> metavar "N" <> help "Stop after applying N blocks"))
+    <*> epochOptions
 
 serveOptions :: Parser ServeOptions
 serveOptions =
@@ -414,6 +588,7 @@ serveOptions =
           <> value ("127.0.0.1", 50051)
           <> help "Where to serve gRPC over plain HTTP/2 (default: 127.0.0.1:50051)"
       )
+    <*> epochOptions
  where
   parseListen s = case break (== ':') (reverse s) of
     (rport, ':' : rhost)
@@ -426,6 +601,52 @@ serveOptions =
   unbracket h = case h of
     '[' : rest | not (null rest), last rest == ']' -> init rest
     _ -> h
+
+epochOptions :: Parser EpochOptions
+epochOptions =
+  EpochOptions
+    <$> optional
+      ( strOption
+          ( long "trusted-state"
+              <> metavar "FILE"
+              <> help
+                "Trusted Praos protocol state to start the nonce driver from (JSON: point, praos_state_cbor). \
+                \Its point must be at or after the index tip"
+          )
+      )
+    <*> many
+      ( option
+          (eitherReader parseMaxTxSize)
+          ( long "max-tx-size"
+              <> metavar "EPOCH:BYTES"
+              <> help "maxTxSize from EPOCH on, added to the network's table (repeatable)"
+          )
+      )
+    <*> many
+      ( option
+          (eitherReader (parseProposalRef . Text.pack))
+          ( long "acknowledge-proposal"
+              <> metavar "TXID#INDEX|TXID@GENESISKEYHASH"
+              <> help "A reviewed proposal that changes maxTxSize; it no longer gates serving (repeatable)"
+          )
+      )
+    <*> optional
+      ( flag' True (long "mithril" <> help "Fetch stake distributions from Mithril (default with --relay)")
+          <|> flag' False (long "no-mithril" <> help "Do not fetch stake distributions from Mithril")
+      )
+    <*> optional
+      (strOption (long "mithril-aggregator" <> metavar "URL" <> help "Mithril aggregator (default: the network's)"))
+    <*> option
+      auto
+      ( long "stake-backfill-epochs"
+          <> metavar "N"
+          <> value 6
+          <> help "Keep the stake distributions of the N epochs before the tip epoch (default: 6)"
+      )
+ where
+  parseMaxTxSize s = case break (== ':') s of
+    (e, ':' : v) | Just epoch <- readMaybe e, Just size <- readMaybe v -> Right (EpochNo epoch, size)
+    _ -> Left "expected EPOCH:BYTES"
 
 fetchOptions :: Parser FetchOptions
 fetchOptions =
