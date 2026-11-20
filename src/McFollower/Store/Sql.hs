@@ -11,6 +11,7 @@ module McFollower.Store.Sql
     -- * Statements
   , query
   , foldQuery
+  , forRowsWhile
   , execute
 
     -- * Transactions
@@ -30,7 +31,7 @@ module McFollower.Store.Sql
   ) where
 
 import Control.Exception (Exception, mask, onException, throwIO)
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.ByteString (ByteString)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.Int (Int64)
@@ -75,6 +76,17 @@ foldQuery conn sql params z f = withPrepared conn sql $ \stmt -> do
           Done -> pure acc
           Row -> SQLite.columns stmt >>= f acc >>= go
   go z
+
+-- | Run a statement and pass its rows, one at a time, to an action until it
+-- returns 'False' or the rows run out.
+forRowsWhile :: Conn -> Text -> [SQLData] -> ([SQLData] -> IO Bool) -> IO ()
+forRowsWhile conn sql params f = withPrepared conn sql $ \stmt -> do
+  SQLite.bind stmt params
+  let go =
+        SQLite.step stmt >>= \case
+          Done -> pure ()
+          Row -> SQLite.columns stmt >>= f >>= \more -> when more go
+  go
 
 query :: Conn -> Text -> [SQLData] -> IO [[SQLData]]
 query conn sql params = reverse <$> foldQuery conn sql params [] (\rows row -> pure (row : rows))

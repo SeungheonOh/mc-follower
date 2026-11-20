@@ -11,9 +11,17 @@
 -- Where the SQL has no @ORDER BY@ the order here is fixed and documented on
 -- the function. Blocks and transactions before the index's start point are
 -- absent.
+--
+-- Queries returning many rows come in two forms: @eachX@ passes the rows to
+-- a 'Sink' one at a time while the statement steps, so that a server can
+-- stream them without holding the result in memory; @getX@ collects them.
 module McFollower.Query
-  ( -- * Row types
-    BlockInfo (..)
+  ( -- * Streaming
+    Sink
+  , collect
+
+    -- * Row types
+  , BlockInfo (..)
   , Position (..)
   , Window (..)
   , Page (..)
@@ -26,6 +34,7 @@ module McFollower.Query
 
     -- * Blocks
   , getLatestBlock
+  , eachBlockByNumberRange
   , getBlocksByNumberRange
   , HighestBlockWindow (..)
   , getHighestBlockInWindow
@@ -36,26 +45,33 @@ module McFollower.Query
   , BridgeLowerBound (..)
   , BridgeTxsRequest (..)
   , BridgeTxRow (..)
+  , eachBridgeTx
   , getBridgeTxs
 
     -- * Authority selection
   , getLatestBlockForEpoch
   , getLatestStableEpoch
+  , eachPoolStake
   , getStakeDistribution
   , TokenOutput (..)
   , getLatestTokenOutputForEpoch
   , getEpochNonce
   , AddressOutput (..)
+  , eachUnspentOutputAtAddress
   , getUnspentOutputsAtAddress
 
     -- * cNIGHT observation
   , RegistrationRow (..)
+  , eachMappingRegistration
   , getMappingRegistrations
   , DeregistrationRow (..)
+  , eachMappingDeregistration
   , getMappingDeregistrations
   , AssetCreateRow (..)
+  , eachAssetCreate
   , getAssetCreates
   , AssetSpendRow (..)
+  , eachAssetSpend
   , getAssetSpends
   , getMaxTxSize
 
@@ -64,8 +80,9 @@ module McFollower.Query
   , getLatestGovernanceOutput
   ) where
 
-import Control.Monad (forM)
+import Control.Monad (when)
 import Data.ByteString (ByteString)
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -74,6 +91,20 @@ import McFollower.Extract (OutRef (..))
 import McFollower.Store (Snapshot, snapshotConn)
 import McFollower.Store.Sql
 import McFollower.WatchSet (AssetId (..))
+
+-- | Receives the rows of a query, one at a time, in the query's order.
+type Sink a = a -> IO ()
+
+-- | The rows an @eachX@ query passes to its sink.
+collect :: (Sink a -> IO ()) -> IO [a]
+collect each = do
+  rows <- newIORef []
+  each (\row -> modifyIORef' rows (row :))
+  reverse <$> readIORef rows
+
+-- | Decode the rows of a statement and pass them on as they come.
+eachRow :: Snapshot -> Text -> [SQLData] -> ([SQLData] -> IO a) -> Sink a -> IO ()
+eachRow snap sql params decode sink = foldQuery (snapshotConn snap) sql params () (\() row -> decode row >>= sink)
 
 -- | A block of the indexed chain (never an epoch boundary block).
 data BlockInfo = BlockInfo
@@ -153,12 +184,16 @@ getLatestBlock snap =
   firstBlock snap ("SELECT " <> blockColumns <> " FROM block b WHERE b.block_no IS NOT NULL ORDER BY b.block_no DESC LIMIT 1") []
 
 -- | @GetBlocksByNumberRange@: @from <= block_no <= to@, ascending.
-getBlocksByNumberRange :: Word32 -> Word32 -> Snapshot -> IO [BlockInfo]
-getBlocksByNumberRange from to snap =
-  blocks
+eachBlockByNumberRange :: Word32 -> Word32 -> Snapshot -> Sink BlockInfo -> IO ()
+eachBlockByNumberRange from to snap =
+  eachRow
     snap
     ("SELECT " <> blockColumns <> " FROM block b WHERE b.block_no >= ? AND b.block_no <= ? ORDER BY b.block_no")
     [int from, int to]
+    blockRow
+
+getBlocksByNumberRange :: Word32 -> Word32 -> Snapshot -> IO [BlockInfo]
+getBlocksByNumberRange from to = collect . eachBlockByNumberRange from to
 
 -- | All bounds inclusive; times in Unix milliseconds.
 data HighestBlockWindow = HighestBlockWindow
@@ -235,10 +270,14 @@ data BridgeTxRow = BridgeTxRow
 -- address carrying the token, within the bounds, that moved tokens into the
 -- ICS address or out of the reserve address; ordered by position, at most
 -- 'btrMaxTxs'. Metadata is that of the label in the watch set.
-getBridgeTxs :: Word64 -> BridgeTxsRequest -> Snapshot -> IO [BridgeTxRow]
-getBridgeTxs label BridgeTxsRequest {..} snap = do
-  candidates <-
-    query
+eachBridgeTx :: Word64 -> BridgeTxsRequest -> Snapshot -> Sink BridgeTxRow -> IO ()
+eachBridgeTx label BridgeTxsRequest {..} snap sink = do
+  -- Candidates are examined in order until the limit is reached.
+  remaining <- newIORef btrMaxTxs
+  let more = maybe True (> 0) <$> readIORef remaining
+  start <- more
+  when start $
+    forRowsWhile
       c
       ( "SELECT DISTINCT o.block_id, o.block_no, o.block_index FROM tx_out o \
         \JOIN ma_tx_out m ON m.tx_out_id = o.id AND m.policy = ? AND m.name = ? \
@@ -247,7 +286,10 @@ getBridgeTxs label BridgeTxsRequest {..} snap = do
           <> " ORDER BY o.block_no, o.block_index"
       )
       ([blob (assetPolicy btrToken), blob (assetName btrToken), SQLText btrIcsAddress, int btrToBlock] <> lowerParams)
-  rowsOf (maybe (-1) fromIntegral btrMaxTxs :: Int) candidates
+      ( \candidate -> do
+          examine candidate >>= mapM_ (\row -> sink row >> modifyIORef' remaining (fmap (subtract 1)))
+          more
+      )
  where
   c = snapshotConn snap
   (lowerBound, lowerParams) = case btrLower of
@@ -255,12 +297,10 @@ getBridgeTxs label BridgeTxsRequest {..} snap = do
     AfterPosition (Position b t) -> ("(o.block_no, o.block_index) > (?, ?)", [int b, int t])
     FromPosition (Position b t) -> ("(o.block_no, o.block_index) >= (?, ?)", [int b, int t])
 
-  -- Candidates are examined in order until the limit is reached (a negative
-  -- remaining count means no limit).
-  rowsOf remaining candidates = case candidates of
-    _ | remaining == 0 -> pure []
-    [] -> pure []
-    [SQLInteger blockId, SQLInteger blockNo, SQLInteger txIndex] : rest -> do
+  -- The row of a candidate transaction, if it moved tokens into the ICS
+  -- address or out of the reserve address.
+  examine = \case
+    [SQLInteger blockId, SQLInteger blockNo, SQLInteger txIndex] -> do
       bridgeOut <- created btrIcsAddress blockNo txIndex
       bridgeIn <- consumed btrIcsAddress blockId txIndex
       reserveOut <- created btrReserveAddress blockNo txIndex
@@ -274,10 +314,9 @@ getBridgeTxs label BridgeTxsRequest {..} snap = do
                 [] -> pure Nothing
                 [[SQLBlob m]] -> pure (Just m)
                 rows -> rowError "metadata" (concat rows)
-          let row = BridgeTxRow (Position (fromIntegral blockNo) (fromIntegral txIndex)) hash metadatum bridgeIn bridgeOut reserveIn reserveOut
-          (row :) <$> rowsOf (remaining - 1) rest
-        else rowsOf remaining rest
-    row : _ -> rowError "bridge candidate" row
+          pure (Just (BridgeTxRow (Position (fromIntegral blockNo) (fromIntegral txIndex)) hash metadatum bridgeIn bridgeOut reserveIn reserveOut))
+        else pure Nothing
+    row -> rowError "bridge candidate" row
 
   created address blockNo txIndex =
     sumQuantities
@@ -300,6 +339,9 @@ getBridgeTxs label BridgeTxsRequest {..} snap = do
     query c "SELECT hash FROM tx WHERE block_id = ? AND block_index = ?" [SQLInteger blockId, SQLInteger txIndex] >>= \case
       [[SQLBlob h]] -> pure h
       rows -> rowError "tx hash" (concat rows)
+
+getBridgeTxs :: Word64 -> BridgeTxsRequest -> Snapshot -> IO [BridgeTxRow]
+getBridgeTxs label request = collect . eachBridgeTx label request
 
 -- | @GetLatestBlockForEpoch@: the block with the highest slot among blocks
 -- in epochs up to @epoch@.
@@ -330,10 +372,16 @@ getLatestStableEpoch k snap =
 
 -- | @GetStakeDistribution@: (pool hash, lovelace) ordered by pool hash. Empty
 -- unless the epoch's distribution was stored.
+eachPoolStake :: Word32 -> Snapshot -> Sink (ByteString, Word64) -> IO ()
+eachPoolStake epoch snap =
+  eachRow
+    snap
+    "SELECT pool_hash, stake FROM pool_stake WHERE epoch_no = ? ORDER BY pool_hash"
+    [int epoch]
+    (\case [SQLBlob p, SQLInteger s] -> pure (p, fromWord64Bits s); row -> rowError "stake" row)
+
 getStakeDistribution :: Word32 -> Snapshot -> IO [(ByteString, Word64)]
-getStakeDistribution epoch snap =
-  query (snapshotConn snap) "SELECT pool_hash, stake FROM pool_stake WHERE epoch_no = ? ORDER BY pool_hash" [int epoch]
-    >>= mapM (\case [SQLBlob p, SQLInteger s] -> pure (p, fromWord64Bits s); row -> rowError "stake" row)
+getStakeDistribution epoch = collect . eachPoolStake epoch
 
 data TokenOutput = TokenOutput
   { toTxHash :: !ByteString
@@ -394,17 +442,16 @@ data AddressOutput = AddressOutput
 -- | @GetUnspentOutputsAtAddress@: outputs at the address created at or
 -- before @block@ and not spent at or before it. The SQL has no ORDER BY;
 -- rows come by (block_no, tx_index, output index).
-getUnspentOutputsAtAddress :: Text -> Word32 -> Snapshot -> IO [AddressOutput]
-getUnspentOutputsAtAddress address block snap = do
-  rows <-
-    query
-      c
-      "SELECT o.tx_hash, o.idx, o.block_no, b.slot_no, b.epoch_no, o.block_index, o.address, d.bytes, o.block_id \
+eachUnspentOutputAtAddress :: Text -> Word32 -> Snapshot -> Sink AddressOutput -> IO ()
+eachUnspentOutputAtAddress address block snap =
+  eachRow
+    snap
+    "SELECT o.tx_hash, o.idx, o.block_no, b.slot_no, b.epoch_no, o.block_index, o.address, d.bytes, o.block_id \
       \FROM tx_out o JOIN block b ON b.id = o.block_id LEFT JOIN datum d ON d.hash = o.datum_hash \
       \WHERE o.address = ? AND o.block_no <= ?2 AND (o.spent_block_no IS NULL OR o.spent_block_no > ?2) \
-      \ORDER BY o.block_no, o.block_index, o.idx"
-      [SQLText address, int block]
-  forM rows $ \case
+    \ORDER BY o.block_no, o.block_index, o.idx"
+    [SQLText address, int block]
+    $ \case
     [SQLBlob h, SQLInteger i, SQLInteger n, SQLInteger s, SQLInteger e, SQLInteger t, SQLText a, d, SQLInteger blockId] -> do
       datum <- datumColumn d
       inputs <-
@@ -414,6 +461,9 @@ getUnspentOutputsAtAddress address block snap = do
     row -> rowError "address output" row
  where
   c = snapshotConn snap
+
+getUnspentOutputsAtAddress :: Text -> Word32 -> Snapshot -> IO [AddressOutput]
+getUnspentOutputsAtAddress address block = collect . eachUnspentOutputAtAddress address block
 
 datumColumn :: SQLData -> IO (Maybe ByteString)
 datumColumn = \case
@@ -446,10 +496,10 @@ data RegistrationRow = RegistrationRow
 -- | @GetMappingRegistrations@: outputs at the address holding exactly one
 -- of the auth token, with a resolvable datum, created in the window;
 -- ordered by (block_no, tx_index, output index).
-getMappingRegistrations :: Text -> AssetId -> Window -> Page -> Snapshot -> IO [RegistrationRow]
-getMappingRegistrations address AssetId {..} window page snap =
-  query
-    (snapshotConn snap)
+eachMappingRegistration :: Text -> AssetId -> Window -> Page -> Snapshot -> Sink RegistrationRow -> IO ()
+eachMappingRegistration address AssetId {..} window page snap =
+  eachRow
+    snap
     ( "SELECT d.bytes, o.block_no, b.hash, b.time, o.block_index, o.tx_hash, o.idx \
       \FROM tx_out o JOIN datum d ON d.hash = o.datum_hash \
       \JOIN ma_tx_out m ON m.tx_out_id = o.id JOIN block b ON b.id = o.block_id \
@@ -458,14 +508,16 @@ getMappingRegistrations address AssetId {..} window page snap =
         <> " ORDER BY o.block_no, o.block_index, o.idx LIMIT ? OFFSET ?"
     )
     ([SQLText address, blob assetPolicy, blob assetName] <> params <> pageParams page)
-    >>= mapM
-      ( \case
-          [SQLBlob d, SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLBlob th, SQLInteger i] ->
-            pure (RegistrationRow d (fromIntegral n) bh (t * 1000) (fromIntegral ti) th (fromIntegral i))
-          row -> rowError "registration" row
-      )
+    ( \case
+        [SQLBlob d, SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLBlob th, SQLInteger i] ->
+          pure (RegistrationRow d (fromIntegral n) bh (t * 1000) (fromIntegral ti) th (fromIntegral i))
+        row -> rowError "registration" row
+    )
  where
   (cond, params) = windowCondition "o.block_no" "o.block_index" window
+
+getMappingRegistrations :: Text -> AssetId -> Window -> Page -> Snapshot -> IO [RegistrationRow]
+getMappingRegistrations address asset window page = collect . eachMappingRegistration address asset window page
 
 data DeregistrationRow = DeregistrationRow
   { drDatum :: !ByteString
@@ -481,10 +533,10 @@ data DeregistrationRow = DeregistrationRow
 -- | @GetMappingDeregistrations@: (spending transaction, spent output) for
 -- outputs at the address with a resolvable datum, spent in the window;
 -- ordered by (spending position, spent tx hash, spent index).
-getMappingDeregistrations :: Text -> Window -> Page -> Snapshot -> IO [DeregistrationRow]
-getMappingDeregistrations address window page snap =
-  query
-    (snapshotConn snap)
+eachMappingDeregistration :: Text -> Window -> Page -> Snapshot -> Sink DeregistrationRow -> IO ()
+eachMappingDeregistration address window page snap =
+  eachRow
+    snap
     ( "SELECT d.bytes, o.spent_block_no, b.hash, b.time, o.spent_block_index, t.hash, o.tx_hash, o.idx \
       \FROM tx_out o JOIN datum d ON d.hash = o.datum_hash \
       \JOIN block b ON b.id = o.spent_block_id \
@@ -494,14 +546,16 @@ getMappingDeregistrations address window page snap =
         <> " ORDER BY o.spent_block_no, o.spent_block_index, o.tx_hash, o.idx LIMIT ? OFFSET ?"
     )
     ([SQLText address] <> params <> pageParams page)
-    >>= mapM
-      ( \case
-          [SQLBlob d, SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLBlob th, SQLBlob oh, SQLInteger oi] ->
-            pure (DeregistrationRow d (fromIntegral n) bh (t * 1000) (fromIntegral ti) th (OutRef oh (fromIntegral oi)))
-          row -> rowError "deregistration" row
-      )
+    ( \case
+        [SQLBlob d, SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLBlob th, SQLBlob oh, SQLInteger oi] ->
+          pure (DeregistrationRow d (fromIntegral n) bh (t * 1000) (fromIntegral ti) th (OutRef oh (fromIntegral oi)))
+        row -> rowError "deregistration" row
+    )
  where
   (cond, params) = windowCondition "o.spent_block_no" "o.spent_block_index" window
+
+getMappingDeregistrations :: Text -> Window -> Page -> Snapshot -> IO [DeregistrationRow]
+getMappingDeregistrations address window page = collect . eachMappingDeregistration address window page
 
 data AssetCreateRow = AssetCreateRow
   { acBlockNo :: !Word32
@@ -517,10 +571,10 @@ data AssetCreateRow = AssetCreateRow
 
 -- | @GetAssetCreates@: outputs carrying the asset, at any address, created
 -- in the window; ordered by (block_no, tx_index, output index).
-getAssetCreates :: AssetId -> Window -> Page -> Snapshot -> IO [AssetCreateRow]
-getAssetCreates AssetId {..} window page snap =
-  query
-    (snapshotConn snap)
+eachAssetCreate :: AssetId -> Window -> Page -> Snapshot -> Sink AssetCreateRow -> IO ()
+eachAssetCreate AssetId {..} window page snap =
+  eachRow
+    snap
     ( "SELECT m.block_no, b.hash, b.time, m.block_index, m.quantity, o.address, o.tx_hash, m.idx \
       \FROM ma_tx_out m JOIN tx_out o ON o.id = m.tx_out_id JOIN block b ON b.id = o.block_id \
       \WHERE m.policy = ? AND m.name = ? AND "
@@ -528,14 +582,16 @@ getAssetCreates AssetId {..} window page snap =
         <> " ORDER BY m.block_no, m.block_index, m.idx LIMIT ? OFFSET ?"
     )
     ([blob assetPolicy, blob assetName] <> params <> pageParams page)
-    >>= mapM
-      ( \case
-          [SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLInteger q, SQLText a, SQLBlob th, SQLInteger i] ->
-            pure (AssetCreateRow (fromIntegral n) bh (t * 1000) (fromIntegral ti) (fromWord64Bits q) a th (fromIntegral i))
-          row -> rowError "asset create" row
-      )
+    ( \case
+        [SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLInteger q, SQLText a, SQLBlob th, SQLInteger i] ->
+          pure (AssetCreateRow (fromIntegral n) bh (t * 1000) (fromIntegral ti) (fromWord64Bits q) a th (fromIntegral i))
+        row -> rowError "asset create" row
+    )
  where
   (cond, params) = windowCondition "m.block_no" "m.block_index" window
+
+getAssetCreates :: AssetId -> Window -> Page -> Snapshot -> IO [AssetCreateRow]
+getAssetCreates asset window page = collect . eachAssetCreate asset window page
 
 data AssetSpendRow = AssetSpendRow
   { asBlockNo :: !Word32
@@ -552,10 +608,10 @@ data AssetSpendRow = AssetSpendRow
 -- | @GetAssetSpends@: (spending transaction, spent output) for outputs
 -- carrying the asset, spent in the window; ordered by (spending position,
 -- spent tx hash, spent index).
-getAssetSpends :: AssetId -> Window -> Page -> Snapshot -> IO [AssetSpendRow]
-getAssetSpends AssetId {..} window page snap =
-  query
-    (snapshotConn snap)
+eachAssetSpend :: AssetId -> Window -> Page -> Snapshot -> Sink AssetSpendRow -> IO ()
+eachAssetSpend AssetId {..} window page snap =
+  eachRow
+    snap
     ( "SELECT m.spent_block_no, b.hash, b.time, m.spent_block_index, m.quantity, o.address, o.tx_hash, o.idx, t.hash \
       \FROM ma_tx_out m JOIN tx_out o ON o.id = m.tx_out_id \
       \JOIN block b ON b.id = o.spent_block_id \
@@ -565,14 +621,16 @@ getAssetSpends AssetId {..} window page snap =
         <> " ORDER BY m.spent_block_no, m.spent_block_index, o.tx_hash, o.idx LIMIT ? OFFSET ?"
     )
     ([blob assetPolicy, blob assetName] <> params <> pageParams page)
-    >>= mapM
-      ( \case
-          [SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLInteger q, SQLText a, SQLBlob oh, SQLInteger oi, SQLBlob th] ->
-            pure (AssetSpendRow (fromIntegral n) bh (t * 1000) (fromIntegral ti) (fromWord64Bits q) a (OutRef oh (fromIntegral oi)) th)
-          row -> rowError "asset spend" row
-      )
+    ( \case
+        [SQLInteger n, SQLBlob bh, SQLInteger t, SQLInteger ti, SQLInteger q, SQLText a, SQLBlob oh, SQLInteger oi, SQLBlob th] ->
+          pure (AssetSpendRow (fromIntegral n) bh (t * 1000) (fromIntegral ti) (fromWord64Bits q) a (OutRef oh (fromIntegral oi)) th)
+        row -> rowError "asset spend" row
+    )
  where
   (cond, params) = windowCondition "m.spent_block_no" "m.spent_block_index" window
+
+getAssetSpends :: AssetId -> Window -> Page -> Snapshot -> IO [AssetSpendRow]
+getAssetSpends asset window page = collect . eachAssetSpend asset window page
 
 -- | @GetMaxTxSize@: @maxTxSize@ of the epoch of block @block@; absent if
 -- the block or the epoch's parameters are unknown.
