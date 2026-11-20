@@ -38,6 +38,10 @@ library
     McFollower.BlockSource.Recent
     McFollower.LocalStateQuery
     McFollower.Network
+    -- Epoch nonce and epoch data
+    McFollower.EraHistory
+    McFollower.Nonce
+    McFollower.Nonce.TrustedState
 
   build-depends:
     , base                                                                     >=4.18   && <5
@@ -60,6 +64,26 @@ library
     , stm
     , text
     , typed-protocols
+    -- Epoch nonce and epoch data
+    , aeson
+    , bech32
+    , cardano-crypto-class
+    , cardano-ledger-alonzo
+    , cardano-ledger-api
+    , cardano-ledger-conway
+    , cardano-ledger-dijkstra
+    , cardano-ledger-shelley
+    , cardano-protocol-tpraos
+    , cborg
+    , http-client
+    , http-client-tls
+    , http-types
+    , mtl
+    , ouroboros-consensus:protocol
+    , serialise
+    , sop-core
+    , sop-extras
+    , strict-sop-core
 
 executable mc-follower
   import:         warnings, lang
