@@ -61,6 +61,20 @@ library
     , text
     , typed-protocols
 
+  -- Indexer: extractor, store, sync loop and queries.
+  exposed-modules:
+    McFollower.Address
+    McFollower.EraHistory
+    McFollower.WatchSet
+
+  build-depends:
+    , base58-bytestring
+    , bech32
+    , cardano-crypto-class
+    , cardano-ledger-mary
+    , sop-extras
+    , time
+
 executable mc-follower
   import:         warnings, lang
   hs-source-dirs: app
@@ -95,3 +109,4 @@ test-suite mc-follower-test
     , ouroboros-network:{api, protocols}
     , tasty
     , tasty-hunit
+
