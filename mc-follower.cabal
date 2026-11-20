@@ -193,6 +193,7 @@ test-suite mc-follower-live
     , http-client
     , mc-follower
     , ouroboros-consensus:{ouroboros-consensus, cardano, protocol}
+    , ouroboros-network:api
     , tasty
     , tasty-hunit
     , text

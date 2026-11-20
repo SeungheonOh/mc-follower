@@ -38,7 +38,17 @@ import McFollower.EpochData.Stake (EpochStake (..))
 import McFollower.EraHistory (chainParams)
 import McFollower.Network (NetworkConfig (..), NetworkName (..), networkConfig)
 import McFollower.Nonce
-import McFollower.Nonce.TrustedState (TrustedState (..))
+import McFollower.EpochData.Store
+  ( EpochDataError
+  , applyChainEvent
+  , epochNonce
+  , newInMemoryStore
+  , recordStart
+  )
+import McFollower.EpochNonceTable (EpochNonceLookup (..), nonceTable, tableNonce)
+import McFollower.Nonce.TrustedState (TrustedState (..), parseTrustedState)
+import Data.ByteString qualified as BS
+import Ouroboros.Network.Block (Tip (..))
 import Network.HTTP.Client
   ( Manager
   , RequestBody (..)
@@ -73,8 +83,10 @@ tests :: Manager -> TestTree
 tests manager =
   testGroup
     "live (preview)"
-    [ testCaseInfo "nonce driver from the Ogmios-derived state at 128544245" $
-        nonceCheck manager "test/data/preview-ogmios-128544245.json"
+    [ testCaseInfo "nonce driver from the node's ledger snapshot at 128252153 (epoch 1484)" $
+        nonceCheck manager (fromTrustedStateFile "test/data/preview-trusted-128252153.json")
+    , testCaseInfo "nonce driver from the Ogmios-derived state at 128544245" $
+        nonceCheck manager (fromOgmiosCapture "test/data/preview-ogmios-128544245.json")
     , testCaseInfo "Mithril stake distribution total equals Koios active stake" $
         mithrilCheck manager
     ]
@@ -142,16 +154,30 @@ data Stop = Reached | Overshot !(Point Block)
 
 instance Exception Stop
 
-newtype DriverFailed = DriverFailed NonceError
+newtype DriverFailed = DriverFailed EpochDataError
   deriving stock (Show)
 
 instance Exception DriverFailed
 
-nonceCheck :: Manager -> FilePath -> IO String
-nonceCheck manager capturePath = do
-  capture <- loadOgmiosCapture capturePath
-  let trusted = ogmiosTrustedState capture
-      driver0 = startDriver (nonceConfig (chainParams Preview)) trusted
+-- | A trusted state from an Ogmios capture (see "Test.McFollower.Fixtures").
+fromOgmiosCapture :: FilePath -> IO TrustedState
+fromOgmiosCapture path = ogmiosTrustedState <$> loadOgmiosCapture path
+
+-- | A trusted state in the driver's JSON form.
+fromTrustedStateFile :: FilePath -> IO TrustedState
+fromTrustedStateFile path = either fail pure . parseTrustedState =<< BS.readFile path
+
+-- | Drive from the trusted state to the current tip through the store,
+-- with the shipped preview nonce table (so any epoch the table covers is
+-- checked against it as a hard error), then compare every produced epoch
+-- nonce with Koios and the final state with the node's.
+nonceCheck :: Manager -> IO TrustedState -> IO String
+nonceCheck manager loadTrusted = do
+  trusted <- loadTrusted
+  let driver0 = startDriver (nonceConfig (chainParams Preview)) trusted
+      table = nonceTable Preview
+  (store, _) <- newInMemoryStore 433
+  either (assertFailure . show) pure =<< recordStart table store driver0
   -- The starting state's own epoch nonce must already agree with Koios.
   EpochNonce startEpoch startNonce <- either (assertFailure . show) pure (currentEpochNonce driver0)
   koiosStart <- koiosEpochNonce manager startEpoch
@@ -166,15 +192,16 @@ nonceCheck manager capturePath = do
       handler = \case
         RollBackward p _ -> do
           d <- readIORef driverVar
-          either (throwIO . DriverFailed) (writeIORef driverVar . fst) (rollBackTo p d)
+          applyChainEvent table store (RollBackward p TipGenesis) d
+            >>= either (throwIO . DriverFailed) (writeIORef driverVar)
         RollForward blk _ -> do
           when (At (blockSlot blk) > targetSlot) $ throwIO (Overshot target)
           d <- readIORef driverVar
-          case applyHeader (getHeader blk) d of
+          applyChainEvent table store (RollForward (getHeader blk, []) TipGenesis) d >>= \case
             Left e -> throwIO (DriverFailed e)
-            Right (d', cp) -> do
+            Right d' -> do
               writeIORef driverVar d'
-              mapM_ (\en -> modifyIORef' producedVar (<> [en])) (cpNewEpochNonce cp)
+              mapM_ (\en -> modifyIORef' producedVar (<> [en])) (cpNewEpochNonce (driverTip d'))
               when (blockPoint blk == target) (throwIO Reached)
   try (runBlockSource source [tsPoint trusted] handler) >>= \case
     Left Reached -> pure ()
@@ -186,6 +213,9 @@ nonceCheck manager capturePath = do
   comparisons <- forM produced $ \(EpochNonce e n) -> do
     k <- koiosEpochNonce manager e
     pure (e, n, k)
+  -- What the store serves for those epochs: the table where it has them
+  -- (already checked equal), the driver's after.
+  served <- forM produced $ \(EpochNonce e _) -> (e,) <$> epochNonce table store e
   let mismatches = [c | c@(_, n, k) <- comparisons, n /= k]
   unless (null mismatches) $ assertFailure ("epoch nonces differ from Koios: " <> show mismatches)
 
@@ -198,9 +228,16 @@ nonceCheck manager capturePath = do
   pure . intercalate "\n" $
     [ "start " <> Text.unpack (renderPoint (tsPoint trusted)) <> ", epoch " <> show (unEpochNo startEpoch) <> " nonce " <> showNonce startNonce <> " = Koios"
     ]
-      <> [ "epoch " <> show (unEpochNo e) <> ": driver " <> showNonce n <> ", Koios " <> showNonce k
+      <> [ "epoch "
+            <> show (unEpochNo e)
+            <> ": driver "
+            <> showNonce n
+            <> ", Koios "
+            <> showNonce k
+            <> maybe ", not in the shipped table" (\t -> if t == n then ", shipped table equal" else ", shipped table DIFFERS") (tableNonce table e)
          | (e, n, k) <- comparisons
          ]
+      <> ["served: " <> show [(unEpochNo e, either show showLookup l) | (e, l) <- served]]
       <> [ "target " <> Text.unpack (renderPoint target) <> ": evolving, candidate, epoch, last-epoch-block and lab nonces equal the node's (Ogmios); "
             <> show (length (driverCheckpoints driver))
             <> " checkpoints kept"
@@ -214,7 +251,7 @@ nodeStateFromOgmios manager target nonces ours = do
   let field name = either fail pure (parseEither (withObject "nonces" (.: name)) nonces >>= hexNonce)
   evolving <- field "evolvingNonce"
   candidate <- field "candidateNonce"
-  epochNonce <- field "epochNonce"
+  epochNonceNow <- field "epochNonce"
   lastEpochBlock <- field "lastEpochLastAncestor"
   parent <- blockParent manager target
   -- The previous epoch nonce is not checked: take the driver's.
@@ -223,7 +260,7 @@ nodeStateFromOgmios manager target nonces ours = do
       { praosStateLastSlot = pointSlot target
       , praosStateEvolvingNonce = evolving
       , praosStateCandidateNonce = candidate
-      , praosStateEpochNonce = epochNonce
+      , praosStateEpochNonce = epochNonceNow
       , praosStateLabNonce = parent
       , praosStateLastEpochBlockNonce = lastEpochBlock
       }
@@ -293,6 +330,11 @@ mithrilCheck manager = do
         _ -> firstKnown ls
 
 -- * Rendering
+
+showLookup :: EpochNonceLookup -> String
+showLookup = \case
+  NonceInForce n -> showNonce n
+  other -> show other
 
 showNonce :: Nonce -> String
 showNonce = \case
