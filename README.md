@@ -355,11 +355,12 @@ answered as absent:
 | | the nonce is the neutral one (db-sync NULL) | absent |
 | | before the table (Byron; db-sync has no row) | absent |
 | | after the table, supplied with `--epoch-nonces` | the nonce |
-| | after the table, not supplied, not produced by the driver | `UNAVAILABLE` |
+| | after the table, not supplied, not produced by the driver (a future epoch included, which db-sync answers absent: a known difference, CONTRACT.md R17) | `UNAVAILABLE` |
 | | produced by the driver while it diverges from the local node | `UNAVAILABLE` |
 | `GetStakeDistribution` | stored complete | the pools, by pool hash |
 | | before the first Shelley epoch (db-sync has no rows) | empty |
-| | anything else (not obtained yet, incomplete, outside the sources' reach) | `UNAVAILABLE` |
+| | not stored, the tip's epoch + 2 or later, and the indexer caught up (it follows the chain and `GetStatus` reports `syncing = false`; a synced db-sync has no rows that far ahead) | empty |
+| | anything else (not obtained yet, incomplete, outside the sources' reach, the tip's epoch + 1, or later epochs while not caught up) | `UNAVAILABLE` |
 | `GetMaxTxSize` | a node's value, or the table's | the value |
 | | gated by an unacknowledged proposal | `UNAVAILABLE`, naming the proposal |
 | | the table does not cover the epoch (Byron), or the block is unknown | absent |

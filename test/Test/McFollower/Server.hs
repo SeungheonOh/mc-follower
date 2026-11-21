@@ -280,6 +280,29 @@ tests =
               refuses (following (UpstreamTip 120 12)) healthy {ehMissingStake = [EpochNo 2]}
               refuses notFollowing healthy
               answers (following (UpstreamTip 200 20)) healthy $ \c -> blockFor c 0 >>= (@?= Just 9)
+          , testCase "stake distribution two or more epochs past the tip's: empty when caught up, UNAVAILABLE otherwise" $ do
+              (path, _) <- getStore
+              let stakeFor c e = map (\r -> (r ^. #poolHash, r ^. #stake)) <$> streamed c (rpc @P.GetStakeDistribution) (defMessage & #epochNo .~ e)
+                  following up = SyncStatus True (Just up)
+                  answers status health check =
+                    withServer (configWith path (pure status) (pure health)) $ \port ->
+                      withConnection def (ServerInsecure (Address "127.0.0.1" port Nothing)) check
+              -- The tip (block 12) is in epoch 1. Caught up: epochs 3 and
+              -- later have no epoch_stake rows in a synced db-sync.
+              answers (following (UpstreamTip 120 12)) healthy $ \c -> do
+                mapM (stakeFor c) [3, 7, 985571] >>= (@?= [[], [], []])
+                -- The tip's epoch + 1 is unchanged: incomplete, so refused.
+                expectCode GrpcUnavailable (stakeFor c 2)
+                -- Stored and pre-Shelley epochs as always.
+                map fst <$> stakeFor c 1 >>= (@?= [policy 0x01, policy 0x02])
+                stakeFor c 0 >>= (@?= [])
+              -- Not caught up: refused.
+              let refuses status health =
+                    answers status health $ \c -> mapM_ (expectCode GrpcUnavailable . stakeFor c) [2, 3, 985571]
+              refuses (following (UpstreamTip 200 20)) healthy
+              refuses (SyncStatus True Nothing) healthy
+              refuses (following (UpstreamTip 120 12)) healthy {ehMissingStake = [EpochNo 2]}
+              refuses notFollowing healthy
           , testCase "latest stable epoch: signed, absent below k" $ do
               let stable k = (^. #maybe'epochNo) <$> call getStore (\c -> unary c (rpc @P.GetLatestStableEpoch) (defMessage & #securityParameter .~ k))
               stable 3 >>= (@?= Just (-1))

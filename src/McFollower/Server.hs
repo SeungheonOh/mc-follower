@@ -63,6 +63,7 @@ import Data.Bits (shiftR, (.&.))
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Base16 qualified as Base16
+import Data.Maybe (isNothing)
 import Data.ProtoLens.Labels ()
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -484,11 +485,24 @@ getLatestStableEpoch env req =
 
 getStakeDistribution :: Env -> P.GetStakeDistributionRequest -> (P.StakePoolEntry -> IO ()) -> IO ()
 getStakeDistribution env req send =
-  answering env $ \_ snap -> do
-    let epoch = EpochNo (fromIntegral (req ^. #epochNo))
+  answering env $ \tip@Q.BlockInfo {biEpoch} snap -> do
+    let requested = req ^. #epochNo
+        epoch = EpochNo (fromIntegral requested)
         EpochDataConfig {edcFirstShelleyEpoch} = svEpochData (envConfig env)
     stored <- loadStake (snapshotEpochData snap) epoch
-    rows <- epochAnswer (answerStake edcFirstShelleyEpoch stored epoch)
+    -- db-sync has epoch_stake rows up to its tip's epoch + 1 at most, so a
+    -- synced db-sync has none for the tip's epoch + 2 or later: a caught-up
+    -- index answers those empty, as db-sync does. The tip's epoch + 1 and
+    -- earlier epochs are answered from what is stored, whatever the sync
+    -- state, since when db-sync writes them is not verified.
+    farFuture <-
+      if isNothing stored && toInteger requested >= toInteger biEpoch + 2
+        then isNothing <$> caughtUp env tip
+        else pure False
+    rows <-
+      if farFuture
+        then pure []
+        else epochAnswer (answerStake edcFirstShelleyEpoch stored epoch)
     mapM_ (\(pool, stake) -> send (defMessage & #poolHash .~ pool & #stake .~ stake)) rows
 
 getLatestTokenOutputForEpoch :: Env -> P.GetLatestTokenOutputForEpochRequest -> IO P.GetLatestTokenOutputForEpochResponse
