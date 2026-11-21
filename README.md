@@ -110,7 +110,7 @@ mc-follower serve --network NAME (UPSTREAM | --no-sync) --db PATH [--listen HOST
   its points.
 - `--db`: the database file; created if missing. A database is bound to the
   network and the watch set it was created with and refuses to open with
-  others, or with another schema version (the current one is 3; a database
+  others, or with another schema version (the current one is 4; a database
   of an older version is refused, never migrated: start a new one).
 - `--from`: where a new database starts; the first block indexed is the one
   after this point. The default is the network's preset start point
@@ -256,13 +256,29 @@ point again.
 
 The tripwire: every block is scanned for proposals that would change
 `maxTxSize` (Conway `ParameterChange` governance actions, earlier update
-proposals). A sighting gates every epoch from the earliest one the proposal
-could take effect in (submission epoch + 2 for governance actions) until the
-operator has reviewed it, brought the table up to date with `--max-tx-size`
-if it was enacted, and acknowledged it with `--acknowledge-proposal REF`
-(`TXID#INDEX` for a governance action, `TXID@GENESISKEYHASH` for an update
-proposal; the `UNAVAILABLE` message and the sync log name it). Sightings are
-kept with their blocks and go with them on a rollback.
+proposals) and for constitutional committee votes. A proposal gates every
+epoch from the earliest one it could take effect in until the operator has
+reviewed it, brought the table up to date with `--max-tx-size` if it was
+enacted, and acknowledged it with `--acknowledge-proposal REF` (`TXID#INDEX`
+for a governance action, `TXID@GENESISKEYHASH` for an update proposal; the
+`UNAVAILABLE` message and the sync log name it). When it gates:
+
+- A governance action: anyone can submit one, so submission alone is only
+  logged as a warning. It gates once a committee member's `Yes` vote on it
+  is seen, since a parameter change cannot be ratified without the
+  committee. A vote cast in epoch v is counted by the ratification that
+  starts at the boundary into v + 1 and enacted at the boundary into v + 2,
+  so the gate starts at v + 2 (never before submission epoch + 2). The
+  earliest `Yes` counts; a member changing the vote later does not lift the
+  gate. Before protocol version 11 the ledger also accepts committee votes
+  from hot credentials that are not currently elected; the indexer cannot
+  tell those apart, so they gate too.
+- A pre-Conway update proposal: only genesis delegates can submit one; it
+  gates on sight, from its target epoch + 1.
+
+Sightings and votes are kept with their blocks and go with them on a
+rollback. A vote is matched to a sighted proposal, so a proposal submitted
+before the database's start point is not seen and its votes do not gate.
 
 Proposals reviewed before a release are acknowledged by the network preset
 (`McFollower.EpochData.MaxTxSize.acknowledgedPreset`): on preview, the four

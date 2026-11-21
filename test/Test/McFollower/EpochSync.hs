@@ -21,7 +21,8 @@ import Data.Text qualified as Text
 import McFollower.Block (Block, parsePoint)
 import McFollower.BlockSource (BlockEvent, BlockSource (..), ChainEvent (..))
 import McFollower.EpochData.Driver
-import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), MaxTxSizeTable (..), maxTxSizePreset, parseProposalRef)
+import Cardano.Ledger.Conway.Governance (Vote (..))
+import McFollower.EpochData.MaxTxSize (CommitteeVote (..), MaxTxSizeSighting (..), MaxTxSizeTable (..), maxTxSizePreset, parseProposalRef)
 import McFollower.EpochData.Serve
 import McFollower.EpochData.Store (EpochDataError (..), EpochDataStore (..))
 import McFollower.EpochNonceTable (NonceConflict (..), NonceTable (..), nonceTable)
@@ -165,7 +166,7 @@ noTable :: NonceTable
 noTable = NonceTable (EpochNo 0) (EpochNo 0) (Map.singleton (EpochNo 0) (mkNonceFromNumber 0))
 
 epochTables :: Store -> IO [(Text, [[SQLData]])]
-epochTables store = filter ((`elem` ["nonce_checkpoint", "epoch_nonce", "max_tx_size_sighting"]) . fst) <$> dumpTables store
+epochTables store = filter ((`elem` ["nonce_checkpoint", "epoch_nonce", "max_tx_size_sighting", "committee_vote"]) . fst) <$> dumpTables store
 
 driverState :: IORef DriverState -> IO [Checkpoint]
 driverState var =
@@ -258,13 +259,17 @@ sightingsFollowBlocks = do
     synced =<< syncEvents noTable store dv [backward parent, forward block]
     sightings <- withEpochData store loadSightings
     map (\s -> (mssPoint s, mssProposedValue s, mssEarliestEpoch s)) sightings @?= [(blockPoint block, 16400, EpochNo 1352)]
-    -- It gates the preset table from its earliest epoch on.
-    let answer e = answerMaxTxSize (maxTxSizePreset Preview) Set.empty sightings Nothing (EpochNo e)
-    answer 1351 @?= Answer (Just 16384)
-    case answer 1352 of
+    -- Submission alone does not gate (the block has no committee vote).
+    withEpochData store loadCommitteeVotes >>= (@?= [])
+    let answer votes e = answerMaxTxSize (maxTxSizePreset Preview) Set.empty sightings votes Nothing (EpochNo e)
+    answer [] 1400 @?= Answer (Just 16384)
+    -- A committee Yes vote in epoch 1355 gates it from 1357.
+    let yes = CommitteeVote (mssProposal (head sightings)) "key:01" VoteYes (blockPoint block) (EpochNo 1355)
+    answer [yes] 1356 @?= Answer (Just 16384)
+    case answer [yes] 1357 of
       NotAvailable _ -> pure ()
       other -> assertFailure (show other)
-    answerMaxTxSize (maxTxSizePreset Preview) (Set.fromList (map mssProposal sightings)) sightings Nothing (EpochNo 1352)
+    answerMaxTxSize (maxTxSizePreset Preview) (Set.fromList (map mssProposal sightings)) sightings [yes] Nothing (EpochNo 1357)
       @?= Answer (Just 16384)
     synced =<< syncEvents noTable store dv [backward parent]
     withEpochData store loadSightings >>= (@?= [])
@@ -415,8 +420,11 @@ servingTests =
       let ref = either error id (parseProposalRef (Text.replicate 64 "d" <> "#2"))
           point = either error id (parsePoint ("100." <> Text.replicate 64 "e"))
           sighting = MaxTxSizeSighting ref point 20000 (EpochNo 12)
+          yes = CommitteeVote ref "key:01" VoteYes point (EpochNo 10)
           table = MaxTxSizeTable [(EpochNo 4, 16384)]
-          ask acks fromNode e = answerMaxTxSize table (Set.fromList acks) [sighting] fromNode (EpochNo e)
+          ask acks fromNode e = answerMaxTxSize table (Set.fromList acks) [sighting] [yes] fromNode (EpochNo e)
+      -- Without a committee vote the proposal does not gate.
+      answerMaxTxSize table Set.empty [sighting] [] Nothing (EpochNo 20) @?= Answer (Just 16384)
       ask [] Nothing 11 @?= Answer (Just 16384)
       case ask [] Nothing 12 of
         NotAvailable m -> assertBool (Text.unpack m) ((Text.replicate 64 "d" <> "#2") `Text.isInfixOf` m)

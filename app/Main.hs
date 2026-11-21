@@ -45,7 +45,15 @@ import Data.ByteString qualified as BS
 import Data.Set qualified as Set
 import Data.Word (Word32)
 import McFollower.EpochData.Driver (DriverStartError (..), DriverState (..), renderDriverState, startDriverState)
-import McFollower.EpochData.MaxTxSize (MaxTxSizeTable (..), ProposalRef, acknowledgedPreset, maxTxSizePreset, parseProposalRef)
+import McFollower.EpochData.MaxTxSize
+  ( MaxTxSizeSighting (..)
+  , MaxTxSizeTable (..)
+  , ProposalRef (..)
+  , acknowledgedPreset
+  , maxTxSizePreset
+  , parseProposalRef
+  , renderProposalRef
+  )
 import McFollower.EpochData.Mithril (Aggregator (..), aggregatorFor)
 import McFollower.EpochData.Producer (MithrilSource (..), ProducerConfig (..), ProducerHealth (..), noProblems, runProducers)
 import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..))
@@ -421,7 +429,24 @@ renderSyncTrace = \case
     "rolled back to " <> renderPoint p <> ", before the nonce driver's start; "
       <> (if pending then "waiting for its trusted state's point again" else "its trusted state is unknown, so it is off")
   TraceEpochNonce (EpochNo e) p -> "epoch nonce of epoch " <> showText e <> " produced at " <> renderPoint p
-  TraceSightings ss -> "maxTxSize proposals sighted: " <> showText ss
+  TraceSightings ss ->
+    Text.intercalate "\n" $
+      [ "WARNING maxTxSize proposal " <> renderProposalRef mssProposal <> " (maxTxSize " <> showText mssProposedValue
+          <> ") submitted in block " <> renderPoint mssPoint
+          <> (case mssProposal of
+                GovernanceAction {} -> "; it gates GetMaxTxSize once a constitutional committee member votes Yes on it"
+                UpdateProposal {} -> "; GetMaxTxSize is UNAVAILABLE from epoch " <> showText (unEpochNo mssEarliestEpoch) <> " unless it is acknowledged")
+      | MaxTxSizeSighting {..} <- ss
+      ]
+  TraceCommitteeApproval approvals ->
+    Text.intercalate "\n" $
+      [ "WARNING a constitutional committee member voted Yes on maxTxSize proposal " <> renderProposalRef (mssProposal s)
+          <> " (maxTxSize " <> showText (mssProposedValue s) <> "); GetMaxTxSize is UNAVAILABLE from epoch "
+          <> showText (unEpochNo from)
+          <> " unless it is acknowledged: review it, update --max-tx-size if it was enacted and pass --acknowledge-proposal "
+          <> renderProposalRef (mssProposal s)
+      | (s, from) <- approvals
+      ]
   TraceProgress Progress {..} ->
     Text.unwords
       [ "synced to slot " <> showText pSlot

@@ -130,6 +130,8 @@ dumpTables store = withSnapshot store $ \snap ->
     , "nonce_checkpoint"
     , "epoch_nonce"
     , "max_tx_size_sighting"
+    , "committee_vote"
+    , "nonce_divergence"
     , "epoch_param"
     , "epoch_stake"
     , "pool_stake"

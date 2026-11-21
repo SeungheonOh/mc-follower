@@ -589,7 +589,8 @@ getMaxTxSize env req =
           let epoch = EpochNo (fromIntegral e)
           fromNode <- loadMaxTxSize eds epoch
           sightings <- loadSightings eds
-          epochAnswer (answerMaxTxSize edcMaxTxSize edcAcknowledged sightings fromNode epoch)
+          votes <- loadCommitteeVotes eds
+          epochAnswer (answerMaxTxSize edcMaxTxSize edcAcknowledged sightings votes fromNode epoch)
     pure (defMessage & #maybe'maxTxSize .~ size)
 
 getLatestGovernanceOutput :: Env -> P.GetLatestGovernanceOutputRequest -> IO P.GetLatestGovernanceOutputResponse

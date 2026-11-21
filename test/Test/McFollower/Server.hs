@@ -131,7 +131,8 @@ chain =
 -- Epoch data on the chain above (epochs 0 and 1): the shipped nonce table
 -- covers epoch 0, the driver produced epoch 1's at block 10, a local node
 -- gave maxTxSize for epoch 0, the table covers epoch 1 but a proposal
--- sighted in block 5 could change it from epoch 1 on; stake is complete
+-- sighted in block 5 (a pre-Conway update proposal, which gates on sight)
+-- could change it from epoch 1 on; stake is complete
 -- for epoch 1 and incomplete for epoch 2; epoch 0 is before Shelley.
 setup :: IO (FilePath, Store)
 setup = do
@@ -154,7 +155,7 @@ poolKey :: Word8 -> KeyHash StakePool
 poolKey b = KeyHash (fromMaybe (error "28 bytes") (hashFromBytes (policy b)))
 
 sightedProposal :: ProposalRef
-sightedProposal = either error id (parseProposalRef (Text.replicate 64 "b" <> "#0"))
+sightedProposal = either error id (parseProposalRef (Text.replicate 64 "b" <> "@" <> Text.replicate 56 "c"))
 
 epochDataConfig :: IO EpochHealth -> EpochDataConfig
 epochDataConfig health =
@@ -330,7 +331,7 @@ tests =
               size 3 >>= (@?= Just 16384)
               try (size 11) >>= \case
                 Left GrpcException {grpcError = GrpcUnavailable, grpcErrorMessage = Just m} ->
-                  assertBool (show m) (("proposal " <> Text.replicate 64 "b" <> "#0") `Text.isInfixOf` m)
+                  assertBool (show m) (("proposal " <> Text.replicate 64 "b" <> "@") `Text.isInfixOf` m)
                 other -> assertFailure ("expected UNAVAILABLE naming the proposal, got " <> show (fmap (const ()) other))
           ]
       , testGroup

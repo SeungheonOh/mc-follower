@@ -9,7 +9,7 @@
 --   state after the block, a few hundred bytes), to resume after a restart
 --   ('resumeDriver') or roll back;
 -- * the epoch nonce, from the checkpoint of the first block of each epoch;
--- * @maxTxSize@ sightings.
+-- * @maxTxSize@ sightings and constitutional committee votes.
 --
 -- Independently of blocks it keeps per-epoch stake distributions (only
 -- complete ones are served), and in node-to-client mode per-epoch
@@ -44,7 +44,7 @@ import Data.Text (Text)
 import Data.Word (Word32)
 import McFollower.Block (Block)
 import McFollower.BlockSource (ChainEvent (..))
-import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..))
+import McFollower.EpochData.MaxTxSize (CommitteeVote (..), MaxTxSizeSighting (..))
 import McFollower.EpochData.Stake (EpochStake (..), PoolStake)
 import McFollower.EpochNonceTable
   ( EpochNonceLookup
@@ -71,6 +71,9 @@ data EpochDataStore m = EpochDataStore
   -- ^ After each block, in chain order. A checkpoint with
   -- 'cpNewEpochNonce' also records that epoch's nonce.
   , storeSightings :: [MaxTxSizeSighting] -> m ()
+  , storeCommitteeVotes :: [CommitteeVote] -> m ()
+  -- ^ In transaction order; a later vote of the same voter on the same
+  -- proposal in the same block replaces the earlier one.
   , storeStake :: EpochStake -> m ()
   -- ^ Replace the epoch's distribution, unless the stored one is complete
   -- and this one is not.
@@ -87,6 +90,8 @@ data EpochDataStore m = EpochDataStore
   , loadStake :: EpochNo -> m (Maybe PoolStake)
   -- ^ Only a complete distribution.
   , loadSightings :: m [MaxTxSizeSighting]
+  , loadCommitteeVotes :: m [CommitteeVote]
+  -- ^ The votes on sighted proposals, in chain order.
   , loadMaxTxSize :: EpochNo -> m (Maybe Word32)
   , storeNonceDivergence :: Maybe Text -> m ()
   -- ^ The outcome of the latest cross-check of the nonce driver against a
@@ -156,6 +161,7 @@ data InMemoryEpochData = InMemoryEpochData
   { imCheckpoints :: !(Seq Checkpoint)
   , imEpochNonces :: !(Map EpochNo (Nonce, Point Block))
   , imSightings :: ![MaxTxSizeSighting]
+  , imVotes :: ![CommitteeVote]
   , imStake :: !(Map EpochNo EpochStake)
   , imMaxTxSize :: !(Map EpochNo Word32)
   , imNonceDivergence :: !(Maybe Text)
@@ -166,7 +172,7 @@ data InMemoryEpochData = InMemoryEpochData
 -- (use @k + 1@). Also returns a way to read the whole contents.
 newInMemoryStore :: Int -> IO (EpochDataStore IO, IO InMemoryEpochData)
 newInMemoryStore keep = do
-  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] Map.empty Map.empty Nothing)
+  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] [] Map.empty Map.empty Nothing)
   pure (store ref, readIORef ref)
  where
   store :: IORef InMemoryEpochData -> EpochDataStore IO
@@ -180,6 +186,7 @@ newInMemoryStore keep = do
                 Just (EpochNonce e n) -> Map.insert e (n, cpPoint cp) (imEpochNonces s)
             }
       , storeSightings = \ss -> modify ref $ \s -> s {imSightings = imSightings s <> ss}
+      , storeCommitteeVotes = \vs -> modify ref $ \s -> s {imVotes = imVotes s <> vs}
       , storeStake = \es -> modify ref $ \s ->
           let keepOld = maybe False (\old -> esComplete old && not (esComplete es)) (Map.lookup (esEpoch es) (imStake s))
            in if keepOld then s else s {imStake = Map.insert (esEpoch es) es (imStake s)}
@@ -193,6 +200,10 @@ newInMemoryStore keep = do
             Just es | esComplete es -> Just (esPools es)
             _ -> Nothing
       , loadSightings = imSightings <$> readIORef ref
+      , loadCommitteeVotes = do
+          s <- readIORef ref
+          let sighted = Set.fromList (map mssProposal (imSightings s))
+          pure (filter ((`Set.member` sighted) . cvProposal) (imVotes s))
       , loadMaxTxSize = \e -> Map.lookup e . imMaxTxSize <$> readIORef ref
       , storeNonceDivergence = \d -> modify ref $ \s -> s {imNonceDivergence = d}
       , loadNonceDivergence = imNonceDivergence <$> readIORef ref
@@ -214,6 +225,7 @@ newInMemoryStore keep = do
             { imCheckpoints = kept
             , imEpochNonces = Map.filter (survives . snd) (imEpochNonces s)
             , imSightings = filter (survives . mssPoint) (imSightings s)
+            , imVotes = filter (survives . cvPoint) (imVotes s)
             }
 
   trimTo n xs = Seq.drop (Seq.length xs - n) xs

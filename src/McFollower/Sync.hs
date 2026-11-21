@@ -4,7 +4,8 @@
 -- points, extract every block and apply it, and undo blocks on rollback.
 --
 -- Every applied block also goes, in the same store transaction, through
--- the @maxTxSize@ tripwire scan and the nonce driver
+-- the @maxTxSize@ tripwire scan (proposals and constitutional committee
+-- votes) and the nonce driver
 -- ("McFollower.EpochData.Driver"); every rollback undoes both (the store
 -- drops what the undone blocks produced, the driver returns to its state at
 -- the rollback point).
@@ -29,7 +30,14 @@ import Data.Word (Word64)
 import McFollower.Block (Block)
 import McFollower.BlockSource (BlockSource (..), ChainEvent (..))
 import McFollower.EpochData.Driver (DriverState (..), feedBackward, feedForward)
-import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting, scanBlock)
+import Cardano.Ledger.Conway.Governance (Vote (..))
+import McFollower.EpochData.MaxTxSize
+  ( CommitteeVote (..)
+  , MaxTxSizeSighting (..)
+  , gateFrom
+  , scanBlock
+  , scanCommitteeVotes
+  )
 import McFollower.EpochData.Store (EpochDataError, EpochDataStore (..))
 import McFollower.EpochNonceTable (NonceTable)
 import McFollower.EraHistory (EraHistory)
@@ -100,6 +108,10 @@ data SyncTrace
   -- ^ The driver produced the nonce of an epoch at this block.
   | TraceSightings ![MaxTxSizeSighting]
   -- ^ Proposals that could change @maxTxSize@.
+  | TraceCommitteeApproval ![(MaxTxSizeSighting, EpochNo)]
+  -- ^ A constitutional committee member voted @Yes@ on these proposals in
+  -- the block just applied: each now gates @maxTxSize@ from the epoch
+  -- given, unless acknowledged.
 
 data SyncStopped
   = StoppedAfter !Word64
@@ -144,12 +156,18 @@ runSync tracer SyncConfig {..} source store = do
           noteUpstream countersVar tip
         RollForward blk tip -> do
           rows <- either (throwIO . SlotOutsideEraHistory (blockPoint blk)) pure (extractBlock scWatchFilter scEraHistory blk)
-          let sightings = scanBlock (EpochNo (brEpoch rows)) blk
+          let epoch = EpochNo (brEpoch rows)
+              sightings = scanBlock epoch blk
+              votes = scanCommitteeVotes epoch blk
           before <- readIORef sedDriver
-          after <- applyBlockWith store rows $ \eds -> do
+          (after, approvals) <- applyBlockWith store rows $ \eds -> do
             storeSightings eds sightings
-            feedForward sedNonceConfig sedNonceTable eds (getHeader blk) before
-              >>= either (throwIO . EpochDataFailed (blockPoint blk)) pure
+            storeCommitteeVotes eds votes
+            approvals <- committeeApprovals eds votes
+            d <-
+              feedForward sedNonceConfig sedNonceTable eds (getHeader blk) before
+                >>= either (throwIO . EpochDataFailed (blockPoint blk)) pure
+            pure (d, approvals)
           writeIORef sedDriver after
           case (before, after) of
             (DriverPending _, DriverActive {}) -> traceWith tracer (TraceDriverStarted (blockPoint blk))
@@ -161,6 +179,7 @@ runSync tracer SyncConfig {..} source store = do
                   traceWith tracer (TraceEpochNonce (enEpoch en) cpPoint)
             _ -> pure ()
           when (not (null sightings)) $ traceWith tracer (TraceSightings sightings)
+          when (not (null approvals)) $ traceWith tracer (TraceCommitteeApproval approvals)
           noteUpstream countersVar tip
           total <- recordBlock countersVar rows
           report countersVar False
@@ -172,6 +191,16 @@ runSync tracer SyncConfig {..} source store = do
     Left e -> throwIO e
     Right v -> absurd v
  where
+  -- The sighted proposals a Yes vote of this block is on, with the epoch
+  -- they now gate from.
+  committeeApprovals eds votes
+    | not (any ((== VoteYes) . cvVote) votes) = pure []
+    | otherwise = do
+        sighted <- loadSightings eds
+        stored <- loadCommitteeVotes eds
+        let approved s = any (\v -> cvProposal v == mssProposal s && cvVote v == VoteYes) votes
+        pure [(s, from) | s <- sighted, approved s, Just from <- [gateFrom stored s]]
+
   noteUpstream var tip = do
     c <- readIORef var
     writeIORef var c {cUpstream = upstreamBlockNo tip}

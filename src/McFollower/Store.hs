@@ -73,7 +73,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Word (Word32, Word64)
 import McFollower.Block (Block, parsePoint, renderPoint)
-import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), parseProposalRef, renderProposalRef)
+import Cardano.Ledger.Conway.Governance (Vote (..))
+import McFollower.EpochData.MaxTxSize (CommitteeVote (..), MaxTxSizeSighting (..), parseProposalRef, renderProposalRef)
 import McFollower.EpochData.Stake (EpochStake (..), StakeSource (..), SnapshotLabel (..))
 import McFollower.EpochData.Store (EpochDataStore (..))
 import McFollower.Extract (BlockRows (..), OutRef (..), OutputRow (..), TxRows (..))
@@ -323,6 +324,7 @@ epochRollbackStatements =
   [ "DELETE FROM nonce_checkpoint WHERE block_id > ?1"
   , "DELETE FROM epoch_nonce WHERE block_id > ?1"
   , "DELETE FROM max_tx_size_sighting WHERE block_id > ?1"
+  , "DELETE FROM committee_vote WHERE block_id > ?1"
   ]
 
 -- | Points to intersect at, newest first: the tip, then blocks 1, 2, 4, 8,
@@ -423,6 +425,12 @@ epochDataStore store@Store {storeConn = c, storeSecurityParam = k} =
           c
           "INSERT INTO max_tx_size_sighting (block_id, proposal, proposed_value, earliest_epoch) VALUES (?, ?, ?, ?)"
           [SQLInteger blockId, SQLText (renderProposalRef mssProposal), int mssProposedValue, int (unEpochNo mssEarliestEpoch)]
+    , storeCommitteeVotes = mapM_ $ \CommitteeVote {..} -> do
+        (blockId, _, _) <- pointRow cvPoint
+        execute
+          c
+          "INSERT OR REPLACE INTO committee_vote (block_id, proposal, voter, vote, epoch_no) VALUES (?, ?, ?, ?, ?)"
+          [SQLInteger blockId, SQLText (renderProposalRef cvProposal), SQLText cvVoter, int (fromEnum cvVote), int (unEpochNo cvEpoch)]
     , storeStake = \EpochStake {..} -> do
         let EpochNo e = esEpoch
         stored <-
@@ -477,6 +485,14 @@ epochDataStore store@Store {storeConn = c, storeSecurityParam = k} =
           [] -> pure Nothing
           [[SQLText d]] -> pure (Just d)
           rows -> rowError "nonce_divergence" (concat rows)
+    , loadCommitteeVotes =
+        query
+          c
+          "SELECT b.slot_no, b.hash, v.proposal, v.voter, v.vote, v.epoch_no \
+          \FROM committee_vote v JOIN block b ON b.id = v.block_id \
+          \WHERE v.proposal IN (SELECT proposal FROM max_tx_size_sighting) ORDER BY v.block_id, v.proposal, v.voter"
+          []
+          >>= mapM voteRow
     , loadMaxTxSize = \(EpochNo e) ->
         query c "SELECT max_tx_size FROM epoch_param WHERE epoch_no = ?" [int e] >>= \case
           [] -> pure Nothing
@@ -484,6 +500,21 @@ epochDataStore store@Store {storeConn = c, storeSecurityParam = k} =
           rows -> rowError "epoch_param" (concat rows)
     }
  where
+  voteRow = \case
+    [SQLInteger slot, SQLBlob hash, SQLText ref, SQLText voter, SQLInteger vote, SQLInteger epoch]
+      | Right proposal <- parseProposalRef ref
+      , vote >= fromIntegral (fromEnum (minBound :: Vote))
+      , vote <= fromIntegral (fromEnum (maxBound :: Vote)) ->
+          pure
+            CommitteeVote
+              { cvProposal = proposal
+              , cvVoter = voter
+              , cvVote = toEnum (fromIntegral vote)
+              , cvPoint = blockPoint slot hash
+              , cvEpoch = EpochNo (fromIntegral epoch)
+              }
+    row -> rowError "committee_vote" row
+
   -- The block id of a stored block, or 0 for the start point.
   pointRow :: Point Block -> IO (Int64, Int64, ByteString)
   pointRow p = case p of

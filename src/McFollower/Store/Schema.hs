@@ -13,7 +13,8 @@
 --   the spending position) are copied onto the output and asset rows so that
 --   every query is an index range scan.
 -- * Epoch data produced by a block (nonce driver checkpoints, the epoch
---   nonces they carry, @maxTxSize@ proposal sightings) carries the block's
+--   nonces they carry, @maxTxSize@ proposal sightings, constitutional
+--   committee votes) carries the block's
 --   @block_id@ and goes with it on a rollback. @block_id@ 0 stands for the
 --   start point. Epoch data from outside the chain (stake distributions and
 --   @maxTxSize@ read from a node or Mithril at an immutable point) is keyed
@@ -32,8 +33,10 @@ import Data.Text (Text)
 -- refused; there are no migrations, a new version needs a new database.
 --
 -- * 3: @nonce_divergence@.
+-- * 4: @committee_vote@ (a version 3 database lacks the votes of the
+--   blocks it already holds, so it cannot be brought up to date).
 schemaVersion :: Int
-schemaVersion = 3
+schemaVersion = 4
 
 schema :: Text
 schema =
@@ -147,6 +150,16 @@ schema =
   \  earliest_epoch INTEGER NOT NULL,\n\
   \  PRIMARY KEY (block_id, proposal)\n\
   \) STRICT, WITHOUT ROWID;\n\
+  \\n\
+  \CREATE TABLE committee_vote (\n\
+  \  block_id INTEGER NOT NULL,\n\
+  \  proposal TEXT NOT NULL,\n\
+  \  voter TEXT NOT NULL,\n\
+  \  vote INTEGER NOT NULL,\n\
+  \  epoch_no INTEGER NOT NULL,\n\
+  \  PRIMARY KEY (block_id, proposal, voter)\n\
+  \) STRICT, WITHOUT ROWID;\n\
+  \CREATE INDEX committee_vote_proposal ON committee_vote (proposal);\n\
   \\n\
   \CREATE TABLE nonce_divergence (\n\
   \  id INTEGER PRIMARY KEY CHECK (id = 1),\n\

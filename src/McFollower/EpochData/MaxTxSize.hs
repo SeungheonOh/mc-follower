@@ -5,24 +5,31 @@
 -- parameters ("McFollower.LocalStateQuery"). Without one (node-to-node
 -- mode) it comes from a per-network table in configuration, guarded by a
 -- tripwire: every block is scanned for proposals that would change
--- @maxTxSize@ ('scanBlock'). A sighting blocks serving the value for every
--- epoch from the earliest one the proposal could take effect in, until the
--- operator has reviewed it, brought the table up to date and acknowledged
--- the proposal in configuration ('lookupMaxTxSize'). Whether the proposal
--- was in fact enacted is not tracked; that needs the ledger.
+-- @maxTxSize@ ('scanBlock') and for constitutional committee votes
+-- ('scanCommitteeVotes'). A proposal that could have been enacted gates
+-- serving the value for every epoch from the earliest one it could take
+-- effect in, until the operator has reviewed it, brought the table up to
+-- date and acknowledged the proposal in configuration
+-- ('lookupMaxTxSize'). Whether the proposal was in fact enacted is not
+-- tracked; that needs the ledger.
 --
--- Proposals that are found:
+-- Proposals that are found, and when they gate:
 --
 -- * Conway and later: a governance action @ParameterChange@ whose update
 --   sets @maxTxSize@, in a phase-2-valid transaction (in Dijkstra, in a
---   sub-transaction too). Submitted in epoch @e@, it enters ratification at
---   the boundary into @e + 1@ and can be enacted at the boundary into
---   @e + 2@ at the earliest (Conway @EPOCH@ rule: enactment applies the
---   ratification state computed during the previous epoch, from the
---   proposals of the epoch before it).
--- * Shelley to Babbage: a protocol parameter update proposal (genesis
---   delegates) setting @maxTxSize@ for epoch @t@; if adopted it is in
---   force from @t + 1@.
+--   sub-transaction too). Anyone can submit one for a deposit, so
+--   submission alone does not gate (it is recorded and logged). A
+--   parameter change is ratified only with the constitutional committee's
+--   approval, so the proposal gates once a committee member's @Yes@ vote
+--   on it is seen in a phase-2-valid transaction ('gateFrom'). Before
+--   protocol version 11 the ledger also accepts votes from committee hot
+--   credentials that are not currently elected
+--   (@hardforkConwayDisallowUnelectedCommitteeFromVoting@); such votes
+--   gate too, as the indexer cannot tell them apart without the ledger
+--   state.
+-- * Shelley to Babbage: a protocol parameter update proposal setting
+--   @maxTxSize@ for epoch @t@. Only genesis delegates can submit one, so
+--   it gates on sight, from @t + 1@ (if adopted it is in force from then).
 --
 -- Byron update proposals are not scanned.
 module McFollower.EpochData.MaxTxSize
@@ -40,8 +47,14 @@ module McFollower.EpochData.MaxTxSize
   , scanBlock
   , updateSightings
   , proposalSightings
+  , CommitteeVote (..)
+  , scanCommitteeVotes
+  , committeeVotes
+  , renderHotCredential
+  , gateFrom
 
     -- * Answer
+  , Gate (..)
   , MaxTxSizeRefusal (..)
   , lookupMaxTxSize
   ) where
@@ -53,8 +66,15 @@ import Cardano.Ledger.Block qualified as Ledger
 import Cardano.Ledger.Conway.TxBody (ConwayEraTxBody (..))
 import Cardano.Ledger.Conway.Governance
   ( GovAction (..)
+  , GovActionId (..)
+  , GovActionIx (..)
   , ProposalProcedure (..)
+  , Vote (..)
+  , Voter (..)
+  , VotingProcedure (..)
+  , VotingProcedures (..)
   )
+import Cardano.Ledger.Credential (Credential (..))
 import Cardano.Ledger.Core
   ( EraBlockBody (..)
   , EraPParams (..)
@@ -66,8 +86,8 @@ import Cardano.Ledger.Core
   , txIdTxBody
   )
 import Cardano.Ledger.Dijkstra.TxBody (DijkstraEraTxBody (..))
-import Cardano.Ledger.Hashes (extractHash, unsafeMakeSafeHash)
-import Cardano.Ledger.Keys (KeyHash (..), KeyRole (GenesisRole))
+import Cardano.Ledger.Hashes (ScriptHash (..), extractHash, unsafeMakeSafeHash)
+import Cardano.Ledger.Keys (KeyHash (..), KeyRole (GenesisRole, HotCommitteeRole))
 import Cardano.Ledger.Shelley.PParams (ProposedPPUpdates (..), Update (..))
 import Cardano.Ledger.Shelley.TxBody (ShelleyEraTxBody (..))
 import Cardano.Ledger.TxIn (TxId (..))
@@ -75,7 +95,7 @@ import Cardano.Slotting.Slot (EpochNo (..))
 import Data.Foldable (toList)
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -258,34 +278,126 @@ proposalSightings (EpochNo e) point body =
   , SJust value <- [maxTxSizeOf update]
   ]
 
+-- | A constitutional committee member's vote on a governance action, as
+-- cast in a block.
+data CommitteeVote = CommitteeVote
+  { cvProposal :: !ProposalRef
+  -- ^ Always a 'GovernanceAction'.
+  , cvVoter :: !Text
+  -- ^ The hot credential ('renderHotCredential').
+  , cvVote :: !Vote
+  , cvPoint :: !(Point Block)
+  -- ^ The block carrying it; on a rollback past it the vote goes.
+  , cvEpoch :: !EpochNo
+  -- ^ The block's epoch.
+  }
+  deriving stock (Eq, Show)
+
+-- | The constitutional committee votes in a block, on any governance
+-- action, in transaction order (a later vote by the same voter on the same
+-- action replaces the earlier one in the ledger). Only phase-2-valid
+-- transactions count. The epoch is the block's own.
+scanCommitteeVotes :: EpochNo -> Block -> [CommitteeVote]
+scanCommitteeVotes epoch blk = case blk of
+  BlockConway b -> concatMap (committeeVotes epoch point . (^. bodyTxL)) (validTxs b)
+  BlockDijkstra b -> concatMap withSubTransactions (validTxs b)
+  _ -> []
+ where
+  point = blockPoint blk
+
+  withSubTransactions tx =
+    let body = tx ^. bodyTxL
+     in committeeVotes epoch point body
+          <> concatMap (committeeVotes epoch point . (^. bodyTxL)) (toList (body ^. subTransactionsTxBodyL))
+
+  validTxs :: (EraBlockBody era, AlonzoEraTx era) => ShelleyBlock proto era -> [Tx TopTx era]
+  validTxs ShelleyBlock {shelleyBlockRaw} =
+    filter (\tx -> tx ^. isPhase2ValidTxL == Phase2Valid) (toList (Ledger.blockBody shelleyBlockRaw ^. txSeqBlockBodyL))
+
+-- | The constitutional committee votes of a (phase-2-valid) transaction
+-- body, cast in the given epoch.
+committeeVotes :: ConwayEraTxBody era => EpochNo -> Point Block -> TxBody l era -> [CommitteeVote]
+committeeVotes epoch point body =
+  [ CommitteeVote
+      { cvProposal = GovernanceAction txId ix
+      , cvVoter = renderHotCredential hot
+      , cvVote = vProcVote procedure
+      , cvPoint = point
+      , cvEpoch = epoch
+      }
+  | (CommitteeVoter hot, actions) <- Map.toList (unVotingProcedures (body ^. votingProceduresTxBodyL))
+  , (GovActionId txId (GovActionIx ix), procedure) <- Map.toList actions
+  ]
+
+-- | @key:HEX@ or @script:HEX@.
+renderHotCredential :: Credential HotCommitteeRole -> Text
+renderHotCredential = \case
+  KeyHashObj (KeyHash h) -> "key:" <> hashToTextAsHex h
+  ScriptHashObj (ScriptHash h) -> "script:" <> hashToTextAsHex h
+
+-- | The first epoch whose @maxTxSize@ a sighted proposal could have
+-- changed, given the committee votes on the current chain; 'Nothing' if it
+-- cannot have been enacted (yet).
+--
+-- * A pre-Conway update proposal: its earliest epoch, on sight.
+-- * A governance action: only once a committee member voted @Yes@ on it.
+--   Ratification at the boundary into epoch @v + 1@ counts the votes cast
+--   up to the end of epoch @v@ (Conway @EPOCH@ rule: the DRep pulser
+--   started at that boundary works on a snapshot of the proposals and
+--   their votes), and its result is enacted at the following boundary,
+--   into @v + 2@. Votes cast during @v + 1@ only reach the ratification
+--   started at the boundary into @v + 2@. So a @Yes@ cast in epoch @v@ can
+--   take effect from @v + 2@ at the earliest, and never before the
+--   proposal's own earliest epoch (submission epoch + 2). The earliest
+--   @Yes@ counts; a voter changing their vote later does not lift the
+--   gate, which stays until the operator acknowledges the proposal.
+gateFrom :: [CommitteeVote] -> MaxTxSizeSighting -> Maybe EpochNo
+gateFrom votes MaxTxSizeSighting {mssProposal, mssEarliestEpoch} = case mssProposal of
+  UpdateProposal {} -> Just mssEarliestEpoch
+  GovernanceAction {} -> case [e | CommitteeVote {cvProposal, cvVote = VoteYes, cvEpoch = e} <- votes, cvProposal == mssProposal] of
+    [] -> Nothing
+    es -> Just (max mssEarliestEpoch (plus2 (minimum es)))
+ where
+  plus2 (EpochNo e) = EpochNo (e + 2)
+
 maxTxSizeOf :: EraPParams era => PParamsUpdate era -> StrictMaybe Word32
 maxTxSizeOf update = update ^. ppuMaxTxSizeL
+
+-- | A proposal gating the value of epochs from 'gFrom' on.
+data Gate = Gate
+  { gSighting :: !MaxTxSizeSighting
+  , gFrom :: !EpochNo
+  }
+  deriving stock (Eq, Show)
 
 data MaxTxSizeRefusal
   = NotCovered !EpochNo
   -- ^ The table has no value for the epoch.
-  | UnconfirmedProposal !EpochNo ![MaxTxSizeSighting]
+  | UnconfirmedProposal !EpochNo ![Gate]
   -- ^ Proposals that could have changed the epoch's value and that the
   -- operator has not acknowledged.
   deriving stock (Eq, Show)
 
--- | The value for an epoch, unless an unacknowledged sighting could have
--- changed it or the table does not cover it.
+-- | The value for an epoch, unless an unacknowledged proposal could have
+-- changed it ('gateFrom') or the table does not cover it.
 lookupMaxTxSize
   :: MaxTxSizeTable
   -> Set ProposalRef
   -- ^ Acknowledged proposals (configuration).
   -> [MaxTxSizeSighting]
   -- ^ Every sighting on the current chain.
+  -> [CommitteeVote]
+  -- ^ The committee votes on the current chain (at least those on the
+  -- sighted proposals).
   -> EpochNo
   -> Either MaxTxSizeRefusal Word32
-lookupMaxTxSize table acknowledged sightings epoch
+lookupMaxTxSize table acknowledged sightings votes epoch
   | not (null blocking) = Left (UnconfirmedProposal epoch blocking)
   | otherwise = maybe (Left (NotCovered epoch)) Right (tableLookup table epoch)
  where
   blocking =
-    [ s
-    | s <- sightings
-    , mssEarliestEpoch s <= epoch
-    , not (mssProposal s `Set.member` acknowledged)
+    [ g
+    | g <- mapMaybe (\s -> Gate s <$> gateFrom votes s) sightings
+    , gFrom g <= epoch
+    , not (mssProposal (gSighting g) `Set.member` acknowledged)
     ]

@@ -13,7 +13,16 @@ import Cardano.Ledger.Babbage (BabbageEra)
 import Cardano.Ledger.BaseTypes (StrictMaybe (..), unsafeNonZero)
 import Cardano.Ledger.Coin (Coin (..))
 import Cardano.Ledger.Conway (ConwayEra)
-import Cardano.Ledger.Conway.Governance (GovAction (..), ProposalProcedure (..))
+import Cardano.Ledger.Conway.Governance
+  ( GovAction (..)
+  , GovActionId (..)
+  , GovActionIx (..)
+  , ProposalProcedure (..)
+  , Vote (..)
+  , Voter (..)
+  , VotingProcedure (..)
+  , VotingProcedures (..)
+  )
 import Cardano.Ledger.Conway.TxBody (ConwayEraTxBody (..))
 import Cardano.Ledger.Core
   ( EraTx (..)
@@ -180,17 +189,52 @@ maxTxSizeTests =
         tableLookup (maxTxSizePreset Mainnet) (EpochNo 208) @?= Just 16384
         tableLookup (maxTxSizePreset Preprod) (EpochNo 4) @?= Just 16384
         tableLookup (maxTxSizePreset Preview) (EpochNo 0) @?= Just 16384
-    , testCase "an unacknowledged sighting blocks its earliest epoch and later" $ do
+    , testCase "a governance proposal without a committee Yes vote does not gate" $ do
         let s = MaxTxSizeSighting proposal somePoint 16400 (EpochNo 1352)
             table = maxTxSizePreset Preview
-        lookupMaxTxSize table Set.empty [s] (EpochNo 1351) @?= Right 16384
-        lookupMaxTxSize table Set.empty [s] (EpochNo 1352) @?= Left (UnconfirmedProposal (EpochNo 1352) [s])
-        lookupMaxTxSize table Set.empty [s] (EpochNo 1400) @?= Left (UnconfirmedProposal (EpochNo 1400) [s])
-        lookupMaxTxSize table (Set.singleton proposal) [s] (EpochNo 1400) @?= Right 16384
-        lookupMaxTxSize (maxTxSizePreset Mainnet) Set.empty [] (EpochNo 100) @?= Left (NotCovered (EpochNo 100))
+        lookupMaxTxSize table Set.empty [s] [] (EpochNo 1400) @?= Right 16384
+        -- No and Abstain votes, and Yes votes on other actions, do not count.
+        lookupMaxTxSize table Set.empty [s] [vote proposal VoteNo 1351, vote proposal Abstain 1351, vote otherProposal VoteYes 1351] (EpochNo 1400)
+          @?= Right 16384
+        lookupMaxTxSize (maxTxSizePreset Mainnet) Set.empty [] [] (EpochNo 100) @?= Left (NotCovered (EpochNo 100))
+    , testCase "a committee Yes vote cast in epoch v gates from v + 2, not before the proposal's earliest epoch" $ do
+        let s = MaxTxSizeSighting proposal somePoint 16400 (EpochNo 1352)
+            table = maxTxSizePreset Preview
+            lookupWith votes e = lookupMaxTxSize table Set.empty [s] votes (EpochNo e)
+            late = [vote proposal VoteYes 1360]
+        lookupWith late 1361 @?= Right 16384
+        lookupWith late 1362 @?= Left (UnconfirmedProposal (EpochNo 1362) [Gate s (EpochNo 1362)])
+        lookupWith late 1400 @?= Left (UnconfirmedProposal (EpochNo 1400) [Gate s (EpochNo 1362)])
+        -- A vote in the submission epoch: the proposal's own earliest epoch.
+        gateFrom [vote proposal VoteYes 1350] s @?= Just (EpochNo 1352)
+        -- The earliest Yes counts, and a later No by the same voter does
+        -- not lift the gate.
+        gateFrom [vote proposal VoteYes 1355, vote proposal VoteNo 1356, vote proposal VoteYes 1358] s @?= Just (EpochNo 1357)
+    , testCase "an acknowledged proposal never gates" $ do
+        let s = MaxTxSizeSighting proposal somePoint 16400 (EpochNo 1352)
+        lookupMaxTxSize (maxTxSizePreset Preview) (Set.singleton proposal) [s] [vote proposal VoteYes 1350] (EpochNo 1400) @?= Right 16384
+    , testCase "a pre-Conway update proposal gates on sight" $ do
+        let genesisKey = KeyHash (fromMaybe (error "28 bytes") (hashFromBytes (BS.replicate 28 9)))
+            s = MaxTxSizeSighting (UpdateProposal txId genesisKey) somePoint 32768 (EpochNo 401)
+        lookupMaxTxSize (MaxTxSizeTable [(EpochNo 0, 16384)]) Set.empty [s] [] (EpochNo 401)
+          @?= Left (UnconfirmedProposal (EpochNo 401) [Gate s (EpochNo 401)])
+    , testCase "committee votes of a Conway transaction body are found" $ do
+        let hot = KeyHashObj (KeyHash (hash28 7))
+            body =
+              mkBasicTxBody
+                & votingProceduresTxBodyL
+                  .~ VotingProcedures
+                    ( Map.fromList
+                        [ (CommitteeVoter hot, Map.singleton (GovActionId txId (GovActionIx 0)) (VotingProcedure VoteYes SNothing))
+                        , (StakePoolVoter (KeyHash (hash28 8)), Map.singleton (GovActionId txId (GovActionIx 0)) (VotingProcedure VoteYes SNothing))
+                        ]
+                    ) ::
+                TxBody TopTx ConwayEra
+        committeeVotes (EpochNo 1360) somePoint body
+          @?= [CommitteeVote proposal (renderHotCredential hot) VoteYes somePoint (EpochNo 1360)]
     , testCase "preview's known proposals are acknowledged by its preset" $ do
         let s = MaxTxSizeSighting proposal somePoint 16400 (EpochNo 1352)
-        lookupMaxTxSize (maxTxSizePreset Preview) (acknowledgedPreset Preview) [s] (EpochNo 1400) @?= Right 16384
+        lookupMaxTxSize (maxTxSizePreset Preview) (acknowledgedPreset Preview) [s] [vote proposal VoteYes 1350] (EpochNo 1400) @?= Right 16384
         Set.size (acknowledgedPreset Preview) @?= 4
         acknowledgedPreset Mainnet @?= Set.empty
     , testCase "proposal references round-trip through text" $ do
@@ -201,6 +245,8 @@ maxTxSizeTests =
  where
   somePoint = either error id (parsePoint "116681054.e18d47f3efe663b253d55263045f6bc12c9205d6a604483ae02581602f0a491a")
   proposal = either error id (parseProposalRef "8b5f096ad63618f1b73112d8ac46fb59519897cbfa318fdb9ffed2dfcee782e4#0")
+  otherProposal = either error id (parseProposalRef "8b5f096ad63618f1b73112d8ac46fb59519897cbfa318fdb9ffed2dfcee782e4#1")
+  vote ref v e = CommitteeVote ref "key:01" v somePoint (EpochNo e)
   txId = case proposal of
     GovernanceAction t _ -> t
     UpdateProposal t _ -> t

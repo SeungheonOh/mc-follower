@@ -39,7 +39,9 @@ import Data.Text qualified as Text
 import Data.Word (Word32, Word64)
 import McFollower.Block (renderPoint)
 import McFollower.EpochData.MaxTxSize
-  ( MaxTxSizeRefusal (..)
+  ( CommitteeVote
+  , Gate (..)
+  , MaxTxSizeRefusal (..)
   , MaxTxSizeSighting (..)
   , MaxTxSizeTable
   , ProposalRef
@@ -136,19 +138,21 @@ answerStake firstShelley stored epoch = case stored of
 
 -- | @GetMaxTxSize@ for the epoch of the requested block: a local node's
 -- value if one was stored; else the configured table, unless a proposal
--- that could change the epoch's value was sighted and not acknowledged
--- (not available, naming the proposals); absent for epochs the table does
--- not cover (Byron: db-sync has no @epoch_param@ row).
+-- that could have changed the epoch's value was not acknowledged (not
+-- available, naming the proposals; see
+-- 'McFollower.EpochData.MaxTxSize.gateFrom'); absent for epochs the table
+-- does not cover (Byron: db-sync has no @epoch_param@ row).
 answerMaxTxSize
   :: MaxTxSizeTable
   -> Set ProposalRef
   -> [MaxTxSizeSighting]
+  -> [CommitteeVote]
   -> Maybe Word32
   -> EpochNo
   -> EpochAnswer (Maybe Word64)
-answerMaxTxSize table acknowledged sightings fromNode epoch = case fromNode of
+answerMaxTxSize table acknowledged sightings votes fromNode epoch = case fromNode of
   Just size -> Answer (Just (fromIntegral size))
-  Nothing -> case lookupMaxTxSize table acknowledged sightings epoch of
+  Nothing -> case lookupMaxTxSize table acknowledged sightings votes epoch of
     Right size -> Answer (Just (fromIntegral size))
     Left (NotCovered _) -> Answer Nothing
     Left (UnconfirmedProposal _ blocking) ->
@@ -158,9 +162,9 @@ answerMaxTxSize table acknowledged sightings fromNode epoch = case fromNode of
             <> ". Review the proposal, bring --max-tx-size up to date and acknowledge it with --acknowledge-proposal"
         )
  where
-  describe MaxTxSizeSighting {..} =
+  describe Gate {gSighting = MaxTxSizeSighting {..}, gFrom} =
     "proposal " <> renderProposalRef mssProposal <> " (maxTxSize " <> showText mssProposedValue
-      <> ", from epoch " <> epochText mssEarliestEpoch <> " at the earliest, in block " <> renderPoint mssPoint <> ")"
+      <> ", in block " <> renderPoint mssPoint <> ", could be in force from epoch " <> epochText gFrom <> ")"
 
 showText :: Show a => a -> Text
 showText = Text.pack . show

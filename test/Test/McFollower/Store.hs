@@ -12,7 +12,8 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Word (Word64)
-import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), parseProposalRef)
+import Cardano.Ledger.Conway.Governance (Vote (..))
+import McFollower.EpochData.MaxTxSize (CommitteeVote (..), MaxTxSizeSighting (..), parseProposalRef)
 import McFollower.EpochData.Stake (EpochStake (..), StakeSource (..))
 import McFollower.EpochData.Store (EpochDataStore (..))
 import McFollower.Nonce (Checkpoint (..), EpochNonce (..))
@@ -156,6 +157,9 @@ epochData = withTestStore $ \_ store -> do
         _ -> Nothing
       proposal = either error id (parseProposalRef (Text.replicate 64 "a" <> "#0"))
       sighting = MaxTxSizeSighting proposal (pointOfBlock 6) 16400 (EpochNo 3)
+      vote n v = CommitteeVote proposal "key:01" v (pointOfBlock n) (EpochNo 3)
+      -- On a proposal never sighted: stored, but not loaded.
+      otherVote = CommitteeVote (either error id (parseProposalRef (Text.replicate 64 "c" <> "#1"))) "key:01" VoteYes (pointOfBlock 7) (EpochNo 3)
       load f = withEpochData store f
   withEpochData store $ \eds -> storeCheckpoint eds (cp 0 (Just (EpochNonce (EpochNo 0) (nonce 0))))
   forM_ (chainFrom [(n, []) | n <- [1 .. 8]]) $ \rows -> do
@@ -163,10 +167,19 @@ epochData = withTestStore $ \_ store -> do
     applyBlockWith store rows $ \eds -> do
       storeCheckpoint eds (cp n (newNonce n))
       storeSightings eds [sighting | n == 6]
+      -- The voter changes the vote within block 7; the later one stays.
+      storeCommitteeVotes eds ([vote 7 VoteNo, vote 7 VoteYes, otherVote] <> [vote 8 VoteNo | n == 8] >>= \v -> [v | cvPoint v == pointOfBlock n])
   map cpPoint <$> load loadCheckpoints >>= (@?= map pointOfBlock [3 .. 8])
   load loadCheckpoints >>= (@?= [cp n (newNonce n) | n <- [3 .. 8]])
   mapM (\e -> load (\eds -> loadEpochNonce eds (EpochNo e))) [0, 1, 2, 3] >>= (@?= [Just (nonce 0), Just (nonce 4), Just NeutralNonce, Nothing])
   load loadSightings >>= (@?= [sighting])
+  load loadCommitteeVotes >>= (@?= [vote 7 VoteYes, vote 8 VoteNo])
+  -- Rolling back the block with the Yes vote un-records it.
+  _ <- rollBackTo store (pointOfBlock 6)
+  load loadCommitteeVotes >>= (@?= [])
+  forM_ (drop 6 (chainFrom [(n, []) | n <- [1 .. 8]])) $ \rows -> do
+    let n = fromMaybe (error "a numbered block") (brNumber rows)
+    applyBlockWith store rows $ \eds -> storeCheckpoint eds (cp n (newNonce n))
   -- A checkpoint for a block that is not stored fails the whole block.
   try (applyBlockWith store (blockRows 9 []) (\eds -> storeCheckpoint eds (cp 10 Nothing))) >>= \case
     Left UnknownEpochDataPoint {} -> pure ()
