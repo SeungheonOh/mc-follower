@@ -295,7 +295,7 @@ only where db-sync would have no row either. Errors:
 |---|---|
 | `INVALID_ARGUMENT` | Malformed request: a hash, policy id or asset name of the wrong length, a missing required message (window, asset, bridge lower bound), a limit or offset of 2^31 or more |
 | `FAILED_PRECONDITION` | The request names an address or policy the watch set does not index (for `GetUnspentOutputsAtAddress`: an address whose creating transactions' input lists are not kept), so an empty answer would be wrong |
-| `UNAVAILABLE` | The database cannot be opened or is for another network or watch set; no block is indexed yet; a block number bound above the indexed tip or an epoch bound above the tip's epoch; or epoch data the indexer does not know (yet), see below |
+| `UNAVAILABLE` | The database cannot be opened or is for another network or watch set; no block is indexed yet; a block number bound above the indexed tip; an epoch bound (`GetLatestBlockForEpoch`, `GetLatestTokenOutputForEpoch`) that is not complete in the index, i.e. not below the tip's epoch; or epoch data the indexer does not know (yet), see below |
 | `INTERNAL` | Anything unexpected, including a stored driver nonce that contradicts the shipped table |
 
 Every block number a node sends is derived from earlier answers of the same

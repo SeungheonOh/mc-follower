@@ -242,7 +242,8 @@ tests =
           "authority selection"
           [ testCase "latest block for epoch" $ do
               blockNoOf <$> call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 0)) >>= (@?= Just 9)
-              blockNoOf <$> call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 1)) >>= (@?= Just 12)
+              -- Epoch 1 is the tip's own epoch: not complete yet.
+              expectCode GrpcUnavailable $ call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 1))
           , testCase "latest stable epoch: signed, absent below k" $ do
               let stable k = (^. #maybe'epochNo) <$> call getStore (\c -> unary c (rpc @P.GetLatestStableEpoch) (defMessage & #securityParameter .~ k))
               stable 3 >>= (@?= Just (-1))
@@ -273,7 +274,7 @@ tests =
                       & #txBlockIndex .~ 0
                       & #datum .~ (defMessage & #cbor .~ "DG1")
                   )
-              token "zz" 1 >>= (@?= Nothing)
+              token "zz" 0 >>= (@?= Nothing)
           , testCase "epoch nonce: table, then driver; UNAVAILABLE when not known" $ do
               let nonce e = (^. #maybe'nonce) <$> call getStore (\c -> unary c (rpc @P.GetEpochNonce) (defMessage & #epochNo .~ e))
               nonce 0 >>= (@?= Just (hash32 0xe0 1))
@@ -389,6 +390,7 @@ tests =
               expectCode GrpcUnavailable $ call getStore (\c -> streamed c (rpc @P.GetBridgeTxs) (bridgeRequest & #afterBlockNo .~ 4 & #toBlockNo .~ 13))
               expectCode GrpcUnavailable $ call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 2))
               expectCode GrpcUnavailable $ call getStore (\c -> unary c (rpc @P.GetLatestTokenOutputForEpoch) (defMessage & #asset .~ assetMessage nightPolicy "" & #epochNo .~ 2))
+              expectCode GrpcUnavailable $ call getStore (\c -> unary c (rpc @P.GetLatestTokenOutputForEpoch) (defMessage & #asset .~ assetMessage nightPolicy "" & #epochNo .~ 1))
               expectCode GrpcUnavailable $ call getStore (\c -> streamed c (rpc @P.GetUnspentOutputsAtAddress) (defMessage & #address .~ "map" & #blockNo .~ 13))
               expectCode GrpcUnavailable $ call getStore (\c -> streamed c (rpc @P.GetMappingRegistrations) (defMessage & #mappingValidatorAddress .~ "map" & #authToken .~ assetMessage authPolicy "" & #window .~ windowMessage (0, 0) (13, 0)))
               expectCode GrpcUnavailable $ call getStore (\c -> streamed c (rpc @P.GetMappingDeregistrations) (defMessage & #mappingValidatorAddress .~ "map" & #window .~ windowMessage (0, 0) (13, 0)))

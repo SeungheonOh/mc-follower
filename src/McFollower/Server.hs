@@ -20,7 +20,8 @@
 --   index cannot answer as db-sync would.
 -- * @UNAVAILABLE@: the store cannot be opened (missing, not yet initialised,
 --   another network or watch set), no block is indexed yet, or the request
---   names a block number or epoch beyond the indexed tip. Every block number
+--   names a block number beyond the indexed tip or an epoch that is not
+--   complete in the index (see 'completeEpoch'). Every block number
 --   a node sends is derived from earlier answers of this indexer (its latest
 --   block or a block found by hash), so a bound beyond the tip means the
 --   index lost blocks in between (a rollback), and answering with what is
@@ -246,11 +247,30 @@ withinTip Q.BlockInfo {biNumber} what n =
   when (n > biNumber) $
     unavailable (what <> " is block " <> showText n <> " but the index ends at block " <> showText biNumber)
 
--- | An epoch bound must not exceed the tip's epoch.
-withinTipEpoch :: Q.BlockInfo -> Word32 -> IO ()
-withinTipEpoch Q.BlockInfo {biEpoch} e =
-  when (e > biEpoch) $
-    unavailable ("epoch " <> showText e <> " is beyond the index, which ends in epoch " <> showText biEpoch)
+-- | An epoch bound must name an epoch that is complete on the indexed
+-- chain.
+--
+-- @GetLatestBlockForEpoch@ (the last block with @epoch_no <= E@) and
+-- @GetLatestTokenOutputForEpoch@ (the last output carrying the asset
+-- created in a block with @epoch_no <= E@) both read exactly the blocks of
+-- epochs up to @E@, and both answers can change with any further block of
+-- epoch @E@: a later block of @E@ is the new answer of the first, and may
+-- carry the asset for the second. The set of blocks of epochs up to @E@ is
+-- final only once the index holds a block of a later epoch, that is when
+-- @E@ is below the tip's epoch. For @E@ equal to the tip's epoch the
+-- answer would be the index's partial view of that epoch, which another
+-- indexer at another tip answers differently, so it is refused like a
+-- bound beyond the tip. (Rollbacks can still change a complete epoch's
+-- answer, as they can every answer about the volatile part of the chain.)
+-- The node asks these for the data epoch, two epochs before the one in
+-- use, which is complete in normal operation.
+completeEpoch :: Q.BlockInfo -> Word32 -> IO ()
+completeEpoch Q.BlockInfo {biEpoch} e =
+  when (e >= biEpoch) $
+    unavailable
+      ( "epoch " <> showText e <> " is not complete in the index, which ends in epoch " <> showText biEpoch
+          <> "; only epochs before " <> showText biEpoch <> " can be answered"
+      )
 
 {-------------------------------------------------------------------------------
   Request validation
@@ -403,7 +423,7 @@ getBridgeTxs env req send = do
 getLatestBlockForEpoch :: Env -> P.GetLatestBlockForEpochRequest -> IO P.OptionalBlock
 getLatestBlockForEpoch env req =
   answering env $ \tip snap -> do
-    withinTipEpoch tip (req ^. #epochNo)
+    completeEpoch tip (req ^. #epochNo)
     optionalBlock <$> Q.getLatestBlockForEpoch (req ^. #epochNo) snap
 
 getLatestStableEpoch :: Env -> P.GetLatestStableEpochRequest -> IO P.GetLatestStableEpochResponse
@@ -426,7 +446,7 @@ getLatestTokenOutputForEpoch env req = do
   asset <- assetId "asset" (req ^. #maybe'asset)
   watchedPolicy env (Q.assetPolicy asset)
   answering env $ \tip snap -> do
-    withinTipEpoch tip (req ^. #epochNo)
+    completeEpoch tip (req ^. #epochNo)
     out <- Q.getLatestTokenOutputForEpoch asset (req ^. #epochNo) snap
     pure (defMessage & #maybe'output .~ fmap tokenOutput out)
  where
