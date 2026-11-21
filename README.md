@@ -103,6 +103,11 @@ mc-follower serve --network NAME (UPSTREAM | --no-sync) --db PATH [--listen HOST
 
 - `UPSTREAM` is `--relay HOST:PORT` (repeatable; N2N) or `--socket PATH`
   (N2C). With neither, the network's bootstrap relays are used (N2N).
+  When a connection fails (cannot connect, protocol error, the relay knows
+  none of the indexer's points) the next relay is tried after 5 s; once
+  every relay has failed in a row the wait doubles per round, up to 5
+  minutes. The indexer stops only when every relay in turn knows none of
+  its points.
 - `--db`: the database file; created if missing. A database is bound to the
   network and the watch set it was created with and refuses to open with
   others, or with another schema version (the current one is 2; a database

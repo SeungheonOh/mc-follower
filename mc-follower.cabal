@@ -185,6 +185,7 @@ test-suite mc-follower-test
     Test.McFollower.Pending
     Test.McFollower.Points
     Test.McFollower.Recent
+    Test.McFollower.Retry
 
   -- Indexer tests.
   other-modules:

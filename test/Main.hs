@@ -9,6 +9,7 @@ import Test.McFollower.Nonce qualified as Nonce
 import Test.McFollower.Pending qualified as Pending
 import Test.McFollower.Query qualified as Query
 import Test.McFollower.Recent qualified as Recent
+import Test.McFollower.Retry qualified as Retry
 import Test.McFollower.Server qualified as Server
 import Test.McFollower.Store qualified as Store
 import Test.Tasty (defaultMain, testGroup)
@@ -19,6 +20,7 @@ main =
     ( testGroup
         "mc-follower"
         [ Recent.tests
+        , Retry.tests
         , Pending.tests
         , Network.tests
         , Extract.tests

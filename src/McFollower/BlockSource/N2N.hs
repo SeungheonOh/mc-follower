@@ -116,7 +116,7 @@ n2nBlockSource
   -> NetworkConfig
   -> NonEmpty RelayAddress
   -> BlockSource
-n2nBlockSource tracer cfg relays = reconnecting tracer $ \attempt points ds ->
+n2nBlockSource tracer cfg relays = reconnecting tracer (length relays) $ \attempt points ds ->
   connectOnce tracer cfg (relays NonEmpty.!! (attempt `mod` length relays)) points ds
 
 type HeaderEvent = ChainEvent Block (Header Block)
@@ -183,7 +183,7 @@ connectOnce tracer cfg relay points ds = do
       { NtN.chainSyncProtocol = InitiatorProtocolOnly . MiniProtocolCb $ \_ctx channel ->
           runPipelinedPeer nullTracer (cChainSyncCodec codecs) channel $
             chainSyncClientPeerPipelined $
-              chainSyncClient tracer (dsAbort ds) points (atomically . writeTBQueue headers)
+              chainSyncClient tracer (dsDrop ds) points (atomically . writeTBQueue headers)
       , NtN.blockFetchProtocol = InitiatorProtocolOnly . MiniProtocolCb $ \_ctx channel -> do
           client <- blockFetchClient tracer headers ds
           runPeer nullTracer (cBlockFetchCodec codecs) channel (blockFetchClientPeer client)
@@ -258,7 +258,7 @@ blockFetchClient tracer headers ds = do
             Hold -> pure []
         writeIORef stalledVar False
         let (pending', rollbacks) = Pending.applyEvents headerPoint events pending
-        when (Pending.size pending' > pendingLimit) $ throwIO (TooManyPendingHeaders (Pending.size pending'))
+        when (Pending.size pending' > pendingLimit) $ dsDrop ds (TooManyPendingHeaders (Pending.size pending'))
         writeIORef pendingVar pending'
         traverse_ (\(p, tip) -> dsDeliver ds (RollBackward p tip)) rollbacks
         case Pending.batch maxBatch pending' of
@@ -284,10 +284,10 @@ blockFetchClient tracer headers ds = do
                     modifyIORef' pendingVar Pending.dropOldest
                     dsDeliver ds (RollForward blk (annTip ann))
                     pure (receive rest)
-                | otherwise -> throwIO (UnexpectedBlock (Just (annPoint ann)) (blockPoint blk))
-              [] -> throwIO (UnexpectedBlock Nothing (blockPoint blk))
+                | otherwise -> dsDrop ds (UnexpectedBlock (Just (annPoint ann)) (blockPoint blk))
+              [] -> dsDrop ds (UnexpectedBlock Nothing (blockPoint blk))
           , handleBatchDone =
-              unless (null expected) $ throwIO (IncompleteBatch (map annPoint expected))
+              unless (null expected) $ dsDrop ds (IncompleteBatch (map annPoint expected))
           }
   pure client
 

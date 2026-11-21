@@ -59,13 +59,13 @@ localNodeConnectInfo LocalNodeConfig {lncNetwork, lncSocketPath} =
 
 -- | Follow the local node's chain, reconnecting if the node goes away.
 n2cBlockSource :: Tracer IO BlockSourceTrace -> LocalNodeConfig -> BlockSource
-n2cBlockSource tracer cfg = reconnecting tracer $ \_attempt points ds -> do
+n2cBlockSource tracer cfg = reconnecting tracer 1 $ \_attempt points ds -> do
   traceWith tracer (TraceConnecting (Text.pack (lncSocketPath cfg)))
   connectToLocalNode
     (localNodeConnectInfo cfg)
     LocalNodeClientProtocols
       { localChainSyncClient =
-          LocalChainSyncClientPipelined (inApiTypes (chainSyncClient tracer (dsAbort ds) points (dsDeliver ds)))
+          LocalChainSyncClientPipelined (inApiTypes (chainSyncClient tracer (dsDrop ds) points (dsDeliver ds)))
       , localTxSubmissionClient = Nothing
       , localStateQueryClient = Nothing
       , localTxMonitoringClient = Nothing

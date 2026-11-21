@@ -35,7 +35,8 @@ import Ouroboros.Network.Protocol.ChainSync.PipelineDecision
 
 -- | Intersect at the first of the given points the upstream knows, then
 -- follow its chain forever. If it knows none of them, hands
--- 'IntersectionNotFound' to the abort action, which must not return.
+-- 'IntersectionNotFound' to the given action, which must not return (it
+-- ends the connection, see 'McFollower.BlockSource.reconnecting').
 chainSyncClient
   :: forall hdr a
    . HasHeader hdr

@@ -519,7 +519,8 @@ renderTrace = \case
   TraceIntersectFound p tip -> "intersected at " <> renderPoint p <> ", upstream tip " <> renderTip tip
   TraceNoBlocks from to ->
     "relay has no blocks for " <> renderPoint from <> " .. " <> renderPoint to <> ", waiting for rollback"
-  TraceDisconnected e -> "disconnected: " <> showText e <> "; reconnecting"
+  TraceDisconnected e delay ->
+    "disconnected: " <> showText e <> "; reconnecting in " <> showText (delay `div` 1_000_000) <> "s"
 
 showText :: Show a => a -> Text
 showText = Text.pack . show
