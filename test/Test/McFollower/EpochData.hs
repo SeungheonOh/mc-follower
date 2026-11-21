@@ -188,6 +188,11 @@ maxTxSizeTests =
         lookupMaxTxSize table Set.empty [s] (EpochNo 1400) @?= Left (UnconfirmedProposal (EpochNo 1400) [s])
         lookupMaxTxSize table (Set.singleton proposal) [s] (EpochNo 1400) @?= Right 16384
         lookupMaxTxSize (maxTxSizePreset Mainnet) Set.empty [] (EpochNo 100) @?= Left (NotCovered (EpochNo 100))
+    , testCase "preview's known proposals are acknowledged by its preset" $ do
+        let s = MaxTxSizeSighting proposal somePoint 16400 (EpochNo 1352)
+        lookupMaxTxSize (maxTxSizePreset Preview) (acknowledgedPreset Preview) [s] (EpochNo 1400) @?= Right 16384
+        Set.size (acknowledgedPreset Preview) @?= 4
+        acknowledgedPreset Mainnet @?= Set.empty
     , testCase "proposal references round-trip through text" $ do
         parseProposalRef (renderProposalRef proposal) @?= Right proposal
         let update = UpdateProposal txId (KeyHash (fromMaybe (error "28 bytes") (hashFromBytes (BS.replicate 28 3))))

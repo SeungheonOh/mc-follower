@@ -259,6 +259,21 @@ if it was enacted, and acknowledged it with `--acknowledge-proposal REF`
 proposal; the `UNAVAILABLE` message and the sync log name it). Sightings are
 kept with their blocks and go with them on a rollback.
 
+Proposals reviewed before a release are acknowledged by the network preset
+(`McFollower.EpochData.MaxTxSize.acknowledgedPreset`): on preview, the four
+Conway proposals to change `maxTxSize` so far, none of them enacted. Without
+it a new preview database would answer `GetMaxTxSize` with `UNAVAILABLE` from
+epoch 1352 on. A proposal sighted after the release has to be acknowledged
+by the operator:
+
+```sh
+mc-follower serve --network preview --relay HOST:PORT --db preview.db \
+  --acknowledge-proposal TXID#INDEX
+```
+
+The option is given to every process that serves (`serve`, with or without
+`--no-sync`); `sync` does not need it.
+
 ## Serving
 
 The sync loop writes on its own connection, the producers on another; every

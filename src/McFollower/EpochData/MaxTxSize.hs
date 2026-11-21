@@ -30,6 +30,7 @@ module McFollower.EpochData.MaxTxSize
     MaxTxSizeTable (..)
   , maxTxSizePreset
   , tableLookup
+  , acknowledgedPreset
 
     -- * Tripwire
   , ProposalRef (..)
@@ -127,6 +128,32 @@ maxTxSizePreset = \case
 tableLookup :: MaxTxSizeTable -> EpochNo -> Maybe Word32
 tableLookup (MaxTxSizeTable entries) epoch =
   fmap snd . listToMaybe . reverse $ takeWhile ((<= epoch) . fst) (sortOn fst entries)
+
+-- | Proposals per network that were reviewed when the indexer was
+-- released and need no @--acknowledge-proposal@. Every Conway proposal to
+-- change @maxTxSize@ on preview, from Koios @proposal_list@ (read
+-- 2026-11-20); none was ratified or enacted and @maxTxSize@ stayed 16384
+-- throughout (see 'maxTxSizePreset'):
+--
+-- * @3f8139c5...82f8#0@: 16386, submitted in epoch 750, expired.
+-- * @608037b7...e09b#0@: 32768, submitted in epoch 1046, expired.
+-- * @8db9c91a...7a16#0@: 16385, submitted in epoch 1047, expired.
+-- * @8b5f096a...82e4#0@: 16400, submitted in epoch 1350, dropped in 1367.
+--   It is after preview's preset start point, so without this entry a new
+--   preview database would refuse @GetMaxTxSize@ from epoch 1352 on.
+--
+-- Mainnet and preprod have had no such proposal.
+acknowledgedPreset :: NetworkName -> Set ProposalRef
+acknowledgedPreset = \case
+  Mainnet -> Set.empty
+  Preprod -> Set.empty
+  Preview ->
+    Set.fromList . map (either error id . parseProposalRef) $
+      [ "3f8139c5a67d3ef290ebbf9cad60009713fbb994bd41d4c885fbeefa706382f8#0"
+      , "608037b7bcb79de6d57a3570857832811f79e3a7f8f90cf3c92aec999c99e09b#0"
+      , "8db9c91ab04f4f198d98e9bda5dbf08870154514f2a213d0858f2ba51a1d7a16#0"
+      , "8b5f096ad63618f1b73112d8ac46fb59519897cbfa318fdb9ffed2dfcee782e4#0"
+      ]
 
 -- | Identifies a proposal so the operator can acknowledge it.
 data ProposalRef

@@ -45,7 +45,7 @@ import Data.ByteString qualified as BS
 import Data.Set qualified as Set
 import Data.Word (Word32)
 import McFollower.EpochData.Driver (DriverStartError (..), DriverState (..), renderDriverState, startDriverState)
-import McFollower.EpochData.MaxTxSize (MaxTxSizeTable (..), ProposalRef, maxTxSizePreset, parseProposalRef)
+import McFollower.EpochData.MaxTxSize (MaxTxSizeTable (..), ProposalRef, acknowledgedPreset, maxTxSizePreset, parseProposalRef)
 import McFollower.EpochData.Mithril (Aggregator (..), aggregatorFor)
 import McFollower.EpochData.Producer (MithrilSource (..), ProducerConfig (..), ProducerHealth (..), noProblems, runProducers)
 import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..))
@@ -307,7 +307,7 @@ epochDataConfig network eo health =
   EpochDataConfig
     { edcNonceTable = nonceTable network
     , edcMaxTxSize = maxTxSizeTable network eo
-    , edcAcknowledged = Set.fromList (eoAcknowledged eo)
+    , edcAcknowledged = acknowledgedPreset network <> Set.fromList (eoAcknowledged eo)
     , edcFirstShelleyEpoch = firstShelleyEpoch network
     , edcHealth = health
     }
