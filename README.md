@@ -142,7 +142,7 @@ With `serve --no-sync` only `--max-tx-size`, `--acknowledge-proposal` and
 `--epoch-nonces` matter; the others belong to the process that syncs.
 
 Restarting resumes from the stored chain: the tip, then blocks 1, 2, 4, 8,
-... below it, then the start point. Rollbacks reported by the upstream undo
+... below it, the oldest stored block, then the start point. Rollbacks reported by the upstream undo
 the affected blocks in one transaction; rollbacks deeper than the security
 parameter k are refused. Progress is written to stderr every 10 seconds,
 together with the nonce driver's and the producers' events:
@@ -273,7 +273,9 @@ point again.
 
 `GetMaxTxSize` answers for the epoch of the requested block:
 
-- a local node's value for that epoch, if the producer stored one (N2C);
+- a local node's value for that epoch, if the producer stored one (N2C;
+  the node is read at its immutable tip, so for the first k blocks of an
+  epoch the table below answers);
 - else the network's table (`McFollower.EpochData.MaxTxSize.maxTxSizePreset`,
   16384 from the first Shelley epoch on all three networks, plus any
   `--max-tx-size EPOCH:BYTES`), unless the tripwire gates the epoch.
@@ -387,14 +389,20 @@ in the log only (the proto has no field for it).
   retried with backoff from 30 s to 30 min; chain following never waits for
   them. What they would have produced stays `UNAVAILABLE` meanwhile.
 - **Loud errors** stop the sync loop: a driver nonce that disagrees with the
-  shipped table, a trusted point that is not on the followed chain, a header
-  of a non-Praos era after the driver started. A disagreement between the
+  shipped table or a supplied nonce, a trusted point that is not on the
+  followed chain, a header of a non-Praos era after the driver started.
+  At startup: epoch nonces nothing can provide (the gap between the table
+  and the driver's first epoch), and an `--epoch-nonces` file that
+  contradicts a known nonce. A disagreement between the
   driver and the local node's protocol state (N2C) is logged as `ERROR` at
   every check and recorded in the database, so that every process serving
   it (a separate `serve --no-sync` included) withholds the driver's nonces
   until a later check agrees.
 - **N2C** paths (node state queries, the node's protocol state, the
   cross-check) compile but have not been run against a node yet.
+- **Known limitations** (datums and proposals before the start point, the
+  N2C `maxTxSize` window, the driver being off, the compiled-in watch set)
+  are listed in [docs/SPEC.md](docs/SPEC.md) section 8.
 
 ## Checking
 
@@ -410,8 +418,9 @@ in the log only (the proto has no field for it).
 
 - **The node's client.** `test/rust-client` is a small Cargo project that
   calls every row-source method of midnight-node's mc-follower client crate
-  (`midnight-primitives-mc-follower`, from a midnight-node checkout next to
-  this repository) against a running `mc-follower serve` for preview, and
+  (`midnight-primitives-mc-follower`, from a checkout of
+  [midnight-node PR #2498](https://github.com/midnightntwrk/midnight-node/pull/2498)
+  next to this repository) against a running `mc-follower serve` for preview, and
   prints the rows and errors; `compare.py` recomputes the same answers from
   the SQLite database (and the shipped nonce table) and diffs them:
 

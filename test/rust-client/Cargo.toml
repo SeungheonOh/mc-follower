@@ -17,7 +17,7 @@ hex = "0.4.3"
 tokio = { version = "1.52.2", features = ["macros", "rt-multi-thread"] }
 
 # The client and the row types, from a midnight-node checkout next to this
-# repository (branch mc-follower-data-source).
+# repository with https://github.com/midnightntwrk/midnight-node/pull/2498.
 db-sync-sqlx = { path = "../../../midnight-node/partner-chains/toolkit/utils/db-sync-sqlx" }
 midnight-primitives-cnight-observation = { path = "../../../midnight-node/primitives/cnight-observation", features = ["std"] }
 midnight-primitives-mainchain-follower = { path = "../../../midnight-node/primitives/mainchain-follower", features = ["std"] }
