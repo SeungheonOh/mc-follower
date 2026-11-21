@@ -7,19 +7,12 @@
 -- from its ledger state, built from the network's chain constants
 -- ('ChainParams', whose values per network are
 -- 'McFollower.Network.chainParams') and the epochs of its past hard
--- forks. Two sources:
---
--- * 'presetHistory': the network's era parameters plus the epochs of its
---   past hard forks. Past era boundaries are immutable, so hard-coding them
---   is safe. The summary is rebuilt for every slot with 'History.summarize',
---   giving the last known era the node's own safe zone from that slot on,
---   so any slot is within it. A header of the era after the last known one
---   adds that transition at the epoch containing the header (see
---   'observeEra').
---
--- * 'nodeHistory': the 'History.Interpreter' a local node returns for
---   @GetInterpreter@. It ends at the node's safe zone; a slot past it is
---   reported as 'History.PastHorizonException' and the caller re-queries.
+-- forks ('presetHistory'). Past era boundaries are immutable, so
+-- hard-coding them is safe. The summary is rebuilt for every slot with
+-- 'History.summarize', giving the last known era the node's own safe zone
+-- from that slot on, so any slot is within it. A header of the era after
+-- the last known one adds that transition at the epoch containing the
+-- header (see 'observeEra').
 module McFollower.EraHistory
   ( -- * Chain constants
     ChainParams (..)
@@ -29,7 +22,6 @@ module McFollower.EraHistory
     -- * Era history
   , EraHistory
   , presetHistory
-  , nodeHistory
   , historyTransitions
   , epochInfoAt
   , observeEra
@@ -41,7 +33,6 @@ module McFollower.EraHistory
 
     -- * Praos configuration
   , PraosEra (..)
-  , praosEraOf
   , praosConsensusConfig
   ) where
 
@@ -127,17 +118,6 @@ activeSlotCoeffOneTwentieth =
 data PraosEra = PraosBabbage | PraosConway | PraosDijkstra
   deriving stock (Eq, Ord, Show, Enum, Bounded)
 
-praosEraOf :: Era -> Maybe PraosEra
-praosEraOf = \case
-  Byron -> Nothing
-  Shelley -> Nothing
-  Allegra -> Nothing
-  Mary -> Nothing
-  Alonzo -> Nothing
-  Babbage -> Just PraosBabbage
-  Conway -> Just PraosConway
-  Dijkstra -> Just PraosDijkstra
-
 -- | The Praos configuration the node uses for headers of the given era
 -- ('Ouroboros.Consensus.Cardano.Node.protocolInfoCardano'): Babbage keeps
 -- the TPraos-era randomness stabilisation window of @3k/f@ slots
@@ -172,43 +152,30 @@ praosConsensusConfig cp era epochInfo =
 securityParam :: ChainParams -> SecurityParam
 securityParam cp = SecurityParam (nonZeroOr (cpSecurityParam cp) (error "k is never zero"))
 
--- | Where slot, epoch and time arithmetic comes from.
-data EraHistory
-  = PresetHistory !ChainParams ![EpochNo]
-  -- ^ Constants and the epochs of every transition known so far
-  -- (the presets' plus any learned by 'observeEra').
-  | NodeHistory !SystemStart !(History.Interpreter (CardanoEras StandardCrypto))
+-- | Where slot, epoch and time arithmetic comes from: the chain constants
+-- and the epochs of every transition known so far (the presets' plus any
+-- learned by 'observeEra').
+data EraHistory = PresetHistory !ChainParams ![EpochNo]
 
 instance Show EraHistory where
-  show = \case
-    PresetHistory _ ts -> "PresetHistory " <> show ts
-    NodeHistory _ _ -> "NodeHistory"
+  show (PresetHistory _ ts) = "PresetHistory " <> show ts
 
 presetHistory :: ChainParams -> EraHistory
 presetHistory cp = PresetHistory cp (cpHardForks cp)
 
--- | A node's era history (@GetInterpreter@) with its system start.
-nodeHistory :: SystemStart -> History.Interpreter (CardanoEras StandardCrypto) -> EraHistory
-nodeHistory = NodeHistory
-
--- | The transition epochs of a preset history, learned ones included.
--- 'Nothing' for a node's interpreter.
-historyTransitions :: EraHistory -> Maybe [EpochNo]
-historyTransitions = \case
-  PresetHistory _ ts -> Just ts
-  NodeHistory _ _ -> Nothing
+-- | The transition epochs, learned ones included.
+historyTransitions :: EraHistory -> [EpochNo]
+historyTransitions (PresetHistory _ ts) = ts
 
 -- | An 'EpochInfo' valid at least up to and including the given slot and
 -- the first slot of the epoch after it.
 --
--- For a preset history this is the 'History.Summary' the node would have
--- with its ledger tip at that slot and no transition announced beyond the
+-- This is the 'History.Summary' the node would have with its ledger tip at
+-- that slot and no transition announced beyond the
 -- known ones: the last known era extends a safe zone ahead of the slot, and
 -- the summary's upper bound admits the first slot of the following epoch.
 epochInfoAt :: EraHistory -> SlotNo -> EpochInfo (Except History.PastHorizonException)
-epochInfoAt history slot = case history of
-  PresetHistory cp ts -> History.summaryToEpochInfo (summary cp ts slot)
-  NodeHistory _ interpreter -> History.interpreterToEpochInfo interpreter
+epochInfoAt (PresetHistory cp ts) slot = History.summaryToEpochInfo (summary cp ts slot)
 
 summary :: ChainParams -> [EpochNo] -> SlotNo -> History.Summary (CardanoEras StandardCrypto)
 summary cp ts slot = History.summarize (NotOrigin slot) (shape cp) (transitions ts)
@@ -278,20 +245,18 @@ data EraHistoryError
 -- length, so slot and epoch arithmetic does not depend on where a
 -- transition between two of them is placed.
 observeEra :: Era -> SlotNo -> EraHistory -> Either EraHistoryError EraHistory
-observeEra era slot history = case history of
-  NodeHistory _ _ -> Right history
-  PresetHistory cp ts -> do
-    epoch <- either (Left . PastHorizon) Right . runExcept $
-      epochInfoEpoch (epochInfoAt history slot) slot
-    -- Era i (Byron = 0) starts at the (i-1)-th transition.
-    let expected = length (takeWhile (<= epoch) ts)
-        known = length ts
-    case compare (fromEnum era) known of
-      _ | fromEnum era == expected -> Right history
-      GT
-        | fromEnum era == known + 1 -> Right (PresetHistory cp (ts <> [epoch]))
-        | otherwise -> Left (EraSkipped era slot ts)
-      _ -> Left (EraMismatch era (toEnum expected) slot)
+observeEra era slot history@(PresetHistory cp ts) = do
+  epoch <- either (Left . PastHorizon) Right . runExcept $
+    epochInfoEpoch (epochInfoAt history slot) slot
+  -- Era i (Byron = 0) starts at the (i-1)-th transition.
+  let expected = length (takeWhile (<= epoch) ts)
+      known = length ts
+  case compare (fromEnum era) known of
+    _ | fromEnum era == expected -> Right history
+    GT
+      | fromEnum era == known + 1 -> Right (PresetHistory cp (ts <> [epoch]))
+      | otherwise -> Left (EraSkipped era slot ts)
+    _ -> Left (EraMismatch era (toEnum expected) slot)
 
 -- | What the store records about a slot.
 data SlotInfo = SlotInfo
@@ -303,13 +268,12 @@ data SlotInfo = SlotInfo
   deriving stock (Eq, Show)
 
 -- | The epoch of a slot and its start time (the extractor's block epoch
--- and block time). With a preset history every slot is within the horizon
--- (see 'epochInfoAt'). Which Shelley-based era the known transitions place
+-- and block time). Every slot is within the horizon (see 'epochInfoAt'). Which Shelley-based era the known transitions place
 -- a slot in does not matter: on the public networks they share epoch size
 -- and slot length, so only the Byron to Shelley boundary affects the
 -- result, and that one is fixed.
 slotInfo :: EraHistory -> SlotNo -> Either History.PastHorizonException SlotInfo
-slotInfo history slot =
+slotInfo (PresetHistory cp ts) slot =
   History.interpretQuery interpreter $ do
     (epoch, _) <- History.slotToEpoch' slot
     (relTime, _) <- History.slotToWallclock slot
@@ -319,6 +283,5 @@ slotInfo history slot =
         , siTime = floor (utcTimeToPOSIXSeconds (fromRelativeTime start relTime))
         }
  where
-  (start, interpreter) = case history of
-    PresetHistory cp ts -> (cpSystemStart cp, History.mkInterpreter (summary cp ts slot))
-    NodeHistory s i -> (s, i)
+  start = cpSystemStart cp
+  interpreter = History.mkInterpreter (summary cp ts slot)

@@ -95,7 +95,7 @@ eraHistoryTests =
       let h = presetHistory (chainParams Preview)
       case observeEra Dijkstra (SlotNo 128563210) h of
         Left e -> assertFailure (show e)
-        Right h' -> historyTransitions h' @?= Just (map EpochNo [0, 0, 0, 0, 3, 646, 1488])
+        Right h' -> historyTransitions h' @?= map EpochNo [0, 0, 0, 0, 3, 646, 1488]
   , testCase "a header of an era the history places elsewhere is rejected" $
       case observeEra Babbage (SlotNo 128476806) (presetHistory (chainParams Preview)) of
         Left (EraMismatch Babbage Conway _) -> pure ()

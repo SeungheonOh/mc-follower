@@ -42,8 +42,6 @@ module McFollower.Nonce
   , resumeDriver
   , driverTip
   , driverCheckpoints
-  , driverHistory
-  , setDriverHistory
   , currentEpochNonce
   , applyHeader
   , rollBackTo
@@ -188,13 +186,6 @@ driverTip NonceDriver {ndWindow} = case Seq.viewr ndWindow of
 -- | The kept checkpoints, oldest first.
 driverCheckpoints :: NonceDriver -> [Checkpoint]
 driverCheckpoints = toList . ndWindow
-
-driverHistory :: NonceDriver -> EraHistory
-driverHistory = ndHistory
-
--- | Replace the era history, e.g. with a fresher interpreter from the node.
-setDriverHistory :: EraHistory -> NonceDriver -> NonceDriver
-setDriverHistory h d = d {ndHistory = h}
 
 -- | The epoch of the driver's tip and the nonce in force during it.
 currentEpochNonce :: NonceDriver -> Either NonceError EpochNonce
