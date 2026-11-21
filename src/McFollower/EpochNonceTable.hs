@@ -23,6 +23,12 @@ module McFollower.EpochNonceTable
   , parseNonceTable
   , tableNonce
 
+    -- * Supplied nonces
+  , extendTable
+  , SupplyError (..)
+  , checkSupplied
+  , nonceGap
+
     -- * Combining with the driver
   , EpochNonceLookup (..)
   , NonceConflict (..)
@@ -93,6 +99,59 @@ parseNonceTable bytes = do
               else maybe (Left ("bad nonce in " <> show l)) (Right . Nonce) (hashFromTextAsHex n)
           Right (EpochNo epoch, nonce)
     _ -> Left ("bad line " <> show l)
+
+-- | The table extended by nonces supplied at run time
+-- (@--epoch-nonces@, kept in the store) as far as they continue it without
+-- a gap. 'checkSupplied' refuses supplied nonces that would leave one.
+extendTable :: NonceTable -> Map EpochNo Nonce -> NonceTable
+extendTable t supplied = t {ntLast = end, ntNonces = Map.union (ntNonces t) (Map.fromList added)}
+ where
+  added = contiguous (succ (ntLast t))
+  contiguous e = case Map.lookup e supplied of
+    Just n -> (e, n) : contiguous (succ e)
+    Nothing -> []
+  end = maybe (ntLast t) fst (lastMaybe added)
+  lastMaybe xs = if null xs then Nothing else Just (last xs)
+
+-- | Why supplied nonces are refused.
+data SupplyError
+  = SuppliedConflict !EpochNo !Text.Text !Nonce !Nonce
+  -- ^ The epoch already has another nonce (from the named source: the
+  -- shipped table, nonces supplied earlier, or the nonce driver), and the
+  -- supplied one.
+  | SuppliedBeforeTable !EpochNo !EpochNo
+  -- ^ A supplied epoch before the shipped table's first (Byron).
+  | SuppliedGap !EpochNo !EpochNo
+  -- ^ Supplied epochs from the second on, but none for the first: they
+  -- would not continue the table.
+  deriving stock (Eq, Show)
+
+-- | Check supplied nonces against the shipped table and the nonces supplied
+-- before: each must agree with a value the epoch already has, and together
+-- they must continue the table without a gap. Returns the ones to store:
+-- those after the table not supplied before.
+checkSupplied :: NonceTable -> Map EpochNo Nonce -> Map EpochNo Nonce -> Either SupplyError (Map EpochNo Nonce)
+checkSupplied table stored file = do
+  mapM_ check (Map.toAscList file)
+  let new = Map.filterWithKey (\e _ -> e > ntLast table) (Map.difference file stored)
+      extended = extendTable table (Map.union stored file)
+  case Map.lookupMin (Map.filterWithKey (\e _ -> e > ntLast extended) (Map.union stored file)) of
+    Just (e, _) -> Left (SuppliedGap (succ (ntLast extended)) e)
+    Nothing -> Right new
+ where
+  check (e, n)
+    | e < ntFirst table = Left (SuppliedBeforeTable e (ntFirst table))
+    | Just t <- tableNonce table e, t /= n = Left (SuppliedConflict e "the shipped table" t n)
+    | Just s <- Map.lookup e stored, s /= n = Left (SuppliedConflict e "nonces supplied earlier" s n)
+    | otherwise = Right ()
+
+-- | The epochs no nonce is known for between the end of the (extended)
+-- table and the epoch the nonce driver starts in, if any: they can never be
+-- served.
+nonceGap :: NonceTable -> EpochNo -> Maybe (EpochNo, EpochNo)
+nonceGap table driverStart
+  | driverStart > succ (ntLast table) = Just (succ (ntLast table), pred driverStart)
+  | otherwise = Nothing
 
 -- | The table's nonce for an epoch it covers.
 tableNonce :: NonceTable -> EpochNo -> Maybe Nonce

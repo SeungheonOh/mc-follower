@@ -477,6 +477,24 @@ epochDataStore store@Store {storeConn = c, storeSecurityParam = k} =
           \FROM max_tx_size_sighting s JOIN block b ON b.id = s.block_id ORDER BY s.block_id, s.proposal"
           []
           >>= mapM sightingRow
+    , storeSuppliedNonces = mapM_ (\(EpochNo e, n) ->
+        execute c "INSERT INTO supplied_epoch_nonce (epoch_no, nonce) VALUES (?, ?)" [int e, nullable blob (nonceBytes n)])
+        . Map.toAscList
+    , loadSuppliedNonces =
+        query c "SELECT epoch_no, nonce FROM supplied_epoch_nonce ORDER BY epoch_no" []
+          >>= fmap Map.fromList . mapM (\case
+                [SQLInteger e, n] -> (EpochNo (fromIntegral e),) <$> nonceColumn n
+                row -> rowError "supplied_epoch_nonce" row)
+    , loadSuppliedNonce = \(EpochNo e) ->
+        query c "SELECT nonce FROM supplied_epoch_nonce WHERE epoch_no = ?" [int e] >>= \case
+          [] -> pure Nothing
+          [[n]] -> Just <$> nonceColumn n
+          rows -> rowError "supplied_epoch_nonce" (concat rows)
+    , loadFirstDriverEpoch =
+        query c "SELECT min(epoch_no) FROM epoch_nonce" [] >>= \case
+          [[SQLNull]] -> pure Nothing
+          [[SQLInteger e]] -> pure (Just (EpochNo (fromIntegral e)))
+          rows -> rowError "epoch_nonce" (concat rows)
     , storeNonceDivergence = \case
         Nothing -> execute c "DELETE FROM nonce_divergence" []
         Just detail -> execute c "INSERT OR REPLACE INTO nonce_divergence (id, detail) VALUES (1, ?)" [SQLText detail]

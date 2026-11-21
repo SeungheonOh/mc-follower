@@ -6,7 +6,7 @@
 module Main (main) where
 
 import Cardano.Slotting.Block (BlockNo (..))
-import Cardano.Slotting.Slot (EpochNo (..), SlotNo (..))
+import Cardano.Slotting.Slot (EpochNo (..), SlotNo (..), WithOrigin (..))
 import Cardano.Slotting.Time (SystemStart (..))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race_)
@@ -57,8 +57,8 @@ import McFollower.EpochData.MaxTxSize
 import McFollower.EpochData.Mithril (Aggregator (..), aggregatorFor)
 import McFollower.EpochData.Producer (MithrilSource (..), ProducerConfig (..), ProducerHealth (..), noProblems, runProducers)
 import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..))
-import McFollower.EpochData.Store (EpochDataStore (..))
-import McFollower.EpochNonceTable (nonceTable)
+import McFollower.EpochData.Store (EpochDataStore (..), suppliedTable, supplyNonces)
+import McFollower.EpochNonceTable (NonceTable (..), SupplyError (..), nonceGap, nonceTable, parseNonceTable)
 import McFollower.EraHistory (ChainParams (..), SlotInfo (..), presetHistory, slotInfo)
 import McFollower.LocalStateQuery (queryProtocolState)
 import McFollower.Nonce (nonceConfig)
@@ -81,7 +81,7 @@ import McFollower.Sync (Progress (..), SyncConfig (..), SyncEpochData (..), Sync
 import McFollower.WatchSet (WatchConfig, WatchFilter, renderWatchConfig, startPointPreset, watchFilter, watchPreset)
 import Network.Socket (HostName, PortNumber)
 import Options.Applicative
-import Ouroboros.Consensus.Block (Point, blockHash, blockNo, blockPoint, blockPrevHash, blockSlot)
+import Ouroboros.Consensus.Block (Point, blockHash, blockNo, blockPoint, blockPrevHash, blockSlot, pointSlot)
 import Ouroboros.Network.Magic (NetworkMagic (..))
 import Data.Word (Word64)
 import System.Directory (doesFileExist)
@@ -140,6 +140,8 @@ data EpochOptions = EpochOptions
   -- ^ Default: on for node-to-node, off with a local node.
   , eoAggregator :: !(Maybe Text)
   , eoBackfill :: !Word32
+  , eoEpochNonces :: !(Maybe FilePath)
+  -- ^ Epoch nonces to merge into the store on top of the shipped table.
   }
 
 data FetchOptions = FetchOptions
@@ -206,9 +208,14 @@ index
 index network upstream eo database identity wf limit onTip driverVar healthVar store = do
   let cp = chainParams network
       nonceCfg = nonceConfig cp
-      table = nonceTable network
       cfg = networkConfig network
+  table <- epochNonceTable network eo store
   trusted <- trustedStateFor network upstream eo store
+  -- The epoch the driver starts in: where it started before, or its
+  -- trusted state's.
+  firstDriverEpoch <- withEpochData store loadFirstDriverEpoch
+  for_ (firstDriverEpoch <|> fmap (epochOfPoint network . tsPoint) trusted) $ \driverStart ->
+    for_ (nonceGap table driverStart) $ \gap -> die (renderNonceGap network table driverStart gap)
   start <- startDriverState nonceCfg table store trusted >>= either (die . renderStartError) pure
   atomicWriteIORef driverVar start
   hPutStrLn stderr ("nonce driver: " <> Text.unpack (renderDriverState start))
@@ -286,6 +293,56 @@ trustedStateFor network upstream eo store = do
         (Just ts, _) -> pure (Just ts)
         (Nothing, Nothing) -> pure Nothing
         (Nothing, Just path) -> either (die . (("cannot read the trusted state in " <> path <> ": ") <>)) (pure . Just) . parseTrustedState =<< BS.readFile path
+
+-- | The shipped nonce table extended by the nonces supplied so far, after
+-- merging the @--epoch-nonces@ file if one is given.
+epochNonceTable :: NetworkName -> EpochOptions -> Store -> IO NonceTable
+epochNonceTable network eo store = case eoEpochNonces eo of
+  Nothing -> withEpochData store (suppliedTable shipped)
+  Just path -> do
+    file <- either (die . (("cannot read the epoch nonces in " <> path <> ": ") <>)) pure . parseNonceTable =<< BS.readFile path
+    withEpochData store (\eds -> supplyNonces shipped eds (ntNonces file)) >>= \case
+      Left e -> die ("cannot use the epoch nonces in " <> path <> ": " <> renderSupplyError e)
+      Right t -> do
+        hPutStrLn stderr
+          ( "epoch nonces: " <> path <> " has epochs " <> show (unEpochNo (ntFirst file)) <> " to " <> show (unEpochNo (ntLast file))
+              <> "; nonces known up to epoch " <> show (unEpochNo (ntLast t)) <> " (the shipped table ends at "
+              <> show (unEpochNo (ntLast shipped)) <> ")"
+          )
+        pure t
+ where
+  shipped = nonceTable network
+
+renderSupplyError :: SupplyError -> String
+renderSupplyError = \case
+  SuppliedConflict (EpochNo e) source existing supplied ->
+    "the nonce of epoch " <> show e <> " is " <> show supplied <> " there but " <> show existing <> " in " <> Text.unpack source
+      <> "; nothing was merged"
+  SuppliedBeforeTable (EpochNo e) (EpochNo first) ->
+    "epoch " <> show e <> " is before the first epoch of the shipped table, " <> show first
+  SuppliedGap (EpochNo missing) (EpochNo after) ->
+    "no nonce is known for epoch " <> show missing <> " but there are nonces from epoch " <> show after
+      <> " on; the file must continue the shipped table without a gap"
+
+-- | Epochs whose nonce nothing can provide: after the table, before the
+-- nonce driver starts.
+renderNonceGap :: NetworkName -> NonceTable -> EpochNo -> (EpochNo, EpochNo) -> String
+renderNonceGap network table (EpochNo driverStart) (EpochNo from, EpochNo to) =
+  "the nonces of epochs " <> show from <> " to " <> show to <> " are not known: the epoch nonce table ends at epoch "
+    <> show (unEpochNo (ntLast table)) <> " and the nonce driver starts in epoch " <> show driverStart
+    <> ", so GetEpochNonce could never answer for them. Produce them with \
+       \scripts/fetch-epoch-nonces.py " <> networkArg network <> " CACHE_DIR > FILE and pass --epoch-nonces FILE"
+ where
+  networkArg = \case
+    Mainnet -> "mainnet"
+    Preprod -> "preprod"
+    Preview -> "preview"
+
+-- | The epoch of a block point (epoch 0 for the origin).
+epochOfPoint :: NetworkName -> Point Block -> EpochNo
+epochOfPoint network p = case pointSlot p of
+  Origin -> EpochNo 0
+  At slot -> either (error . show) siEpoch (slotInfo (presetHistory (chainParams network)) slot)
 
 renderStartError :: DriverStartError -> String
 renderStartError = \case
@@ -382,6 +439,7 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
   stopped <- try $ case svoUpstream of
     Nothing -> do
       checkExisting identity
+      noSyncNonces identity
       let health = pure (EpochHealth "not run by this process" [])
       withServer (server (pure notFollowing) health) $ \bound -> do
         listening bound
@@ -406,6 +464,21 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
     Left e -> throwIO e
     Right () -> pure ()
  where
+  -- Merge --epoch-nonces into an existing database, and report epochs
+  -- whose nonce is unknown (the process that syncs refuses to start then).
+  noSyncNonces identity = do
+    exists <- doesFileExist svoDatabase
+    case (exists, eoEpochNonces svoEpoch) of
+      (False, Just _) -> die ("--epoch-nonces with --no-sync needs an existing database; there is none at " <> svoDatabase)
+      (False, Nothing) -> pure ()
+      (True, _) -> withStore svoDatabase identity $ \store -> do
+        table <- epochNonceTable svoNetwork svoEpoch store
+        withEpochData store loadFirstDriverEpoch >>= \case
+          Just driverStart
+            | Just gap <- nonceGap table driverStart ->
+                hPutStrLn stderr ("ERROR " <> renderNonceGap svoNetwork table driverStart gap)
+          _ -> pure ()
+
   -- Refuse a database of another network or watch set up front; a missing
   -- one is answered with UNAVAILABLE until a sync creates it.
   checkExisting identity =
@@ -668,6 +741,15 @@ epochOptions =
           <> metavar "N"
           <> value 6
           <> help "Keep the stake distributions of the N epochs before the tip epoch (default: 6)"
+      )
+    <*> optional
+      ( strOption
+          ( long "epoch-nonces"
+              <> metavar "FILE"
+              <> help
+                "Epoch nonces continuing the shipped table (CSV as written by scripts/fetch-epoch-nonces.py), \
+                \merged into the database; a nonce that differs from a known one is refused"
+          )
       )
  where
   parseMaxTxSize s = case break (== ':') s of

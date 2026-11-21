@@ -369,10 +369,10 @@ withoutTrustedState = do
     -- after it.
     let table = nonceTable Preview
         EpochNo lastShipped = ntLast table
-    case answerEpochNonce table Nothing Nothing (EpochNo lastShipped) of
+    case answerEpochNonce table Nothing Nothing Nothing (EpochNo lastShipped) of
       Answer (Just _) -> pure ()
       other -> assertFailure (show other)
-    case answerEpochNonce table Nothing Nothing (EpochNo (lastShipped + 1)) of
+    case answerEpochNonce table Nothing Nothing Nothing (EpochNo (lastShipped + 1)) of
       NotAvailable _ -> pure ()
       other -> assertFailure (show other)
 
@@ -387,7 +387,7 @@ servingTests =
           table = NonceTable (EpochNo 5) (EpochNo 7) (Map.fromList [(EpochNo 5, n 5), (EpochNo 6, NeutralNonce), (EpochNo 7, n 7)])
           bytes (Nonce h) = Just (hashToBytes h)
           bytes NeutralNonce = Nothing
-          ask = answerEpochNonce table
+          ask d = answerEpochNonce table d Nothing
       -- Before the table: db-sync has no row.
       ask Nothing Nothing (EpochNo 4) @?= Answer Nothing
       -- The table, with or without (agreeing) driver values.
@@ -399,6 +399,12 @@ servingTests =
       -- After the table: the driver's, or not available.
       ask Nothing (Just (n 8)) (EpochNo 8) @?= Answer (bytes (n 8))
       notAvailable (ask Nothing Nothing (EpochNo 8))
+      -- A supplied nonce after the table, even while the driver diverges;
+      -- one that differs from the driver's is never served.
+      answerEpochNonce table (Just "diverged") (Just (n 8)) Nothing (EpochNo 8) @?= Answer (bytes (n 8))
+      case answerEpochNonce table Nothing (Just (n 8)) (Just (n 9)) (EpochNo 8) of
+        Inconsistent _ -> pure ()
+        other -> assertFailure (show other)
       -- A disagreement is never served.
       case ask Nothing (Just (n 99)) (EpochNo 7) of
         Inconsistent _ -> pure ()

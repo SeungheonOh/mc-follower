@@ -5,11 +5,13 @@ import Cardano.Ledger.BaseTypes (Nonce (..), mkNonceFromNumber)
 import Cardano.Slotting.Slot (EpochNo (..))
 import Data.ByteString.Char8 qualified as BS8
 import Data.Map.Strict qualified as Map
+import McFollower.EpochData.Store (EpochDataStore (..), newInMemoryStore, suppliedTable, supplyNonces)
 import McFollower.EpochNonceTable
 import McFollower.Network (NetworkName (..))
-import McFollower.Nonce (EpochNonce (..))
+import McFollower.Nonce (Checkpoint (..), EpochNonce (..))
 import McFollower.Nonce.TrustedState (TrustedState (..), parseTrustedState)
 import Ouroboros.Consensus.Protocol.Praos (PraosState (..))
+import Test.McFollower.Chain (madeUpState, pointOfBlock)
 import Test.McFollower.Fixtures (hexNonce)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
@@ -43,6 +45,40 @@ tests =
         lookupEpochNonce t (Just (n 7)) (EpochNo 7) @?= Right (NonceInForce (n 7))
         lookupEpochNonce t (Just NeutralNonce) (EpochNo 7) @?= Right (NonceInForce NeutralNonce)
         checkAgainstTable t (EpochNonce (EpochNo 6) (n 1)) @?= Left (NonceConflict (EpochNo 6) NeutralNonce (n 1))
+    , testCase "supplied nonces extend the table and are stored once" $ do
+        (eds, _) <- newInMemoryStore 3
+        let file = Map.fromList [(EpochNo 6, NeutralNonce), (EpochNo 7, n 7), (EpochNo 8, n 8)]
+        supplyNonces t5to6 eds file >>= \case
+          Right t -> (ntLast t, tableNonce t (EpochNo 8)) @?= (EpochNo 8, Just (n 8))
+          Left e -> assertFailure (show e)
+        loadSuppliedNonces eds >>= (@?= Map.fromList [(EpochNo 7, n 7), (EpochNo 8, n 8)])
+        -- Again, and continued: the earlier ones are kept.
+        supplyNonces t5to6 eds (Map.fromList [(EpochNo 8, n 8), (EpochNo 9, n 9)]) >>= \case
+          Right t -> ntLast t @?= EpochNo 9
+          Left e -> assertFailure (show e)
+        ntLast <$> suppliedTable t5to6 eds >>= (@?= EpochNo 9)
+    , testCase "a supplied nonce that differs from a known one is refused, nothing is merged" $ do
+        (eds, _) <- newInMemoryStore 3
+        supplyNonces t5to6 eds (Map.fromList [(EpochNo 6, n 1), (EpochNo 7, n 7)])
+          >>= (@?= Left (SuppliedConflict (EpochNo 6) "the shipped table" NeutralNonce (n 1)))
+        _ <- supplyNonces t5to6 eds (Map.fromList [(EpochNo 7, n 7)])
+        supplyNonces t5to6 eds (Map.fromList [(EpochNo 7, n 70)])
+          >>= (@?= Left (SuppliedConflict (EpochNo 7) "nonces supplied earlier" (n 7) (n 70)))
+        -- A nonce the driver produced.
+        (eds', _) <- newInMemoryStore 3
+        storeCheckpoint eds' (Checkpoint (pointOfBlock 1) (madeUpState 1) (Just (EpochNonce (EpochNo 7) (n 77))))
+        supplyNonces t5to6 eds' (Map.fromList [(EpochNo 7, n 7)])
+          >>= (@?= Left (SuppliedConflict (EpochNo 7) "the nonce driver" (n 77) (n 7)))
+        loadSuppliedNonces eds' >>= (@?= Map.empty)
+        -- A gap after the table, and Byron epochs.
+        supplyNonces t5to6 eds' (Map.fromList [(EpochNo 9, n 9)]) >>= (@?= Left (SuppliedGap (EpochNo 7) (EpochNo 9)))
+        supplyNonces t5to6 eds' (Map.fromList [(EpochNo 4, n 4)]) >>= (@?= Left (SuppliedBeforeTable (EpochNo 4) (EpochNo 5)))
+    , testCase "a gap remains between the table and the driver's first epoch" $ do
+        nonceGap t5to6 (EpochNo 7) @?= Nothing
+        nonceGap t5to6 (EpochNo 5) @?= Nothing
+        nonceGap t5to6 (EpochNo 10) @?= Just (EpochNo 7, EpochNo 9)
+        nonceGap (extendTable t5to6 (Map.fromList [(EpochNo 7, n 7), (EpochNo 8, n 8)])) (EpochNo 10) @?= Just (EpochNo 9, EpochNo 9)
+        nonceGap (extendTable t5to6 (Map.fromList [(EpochNo 7, n 7), (EpochNo 8, n 8), (EpochNo 9, n 9)])) (EpochNo 10) @?= Nothing
     , testCase "malformed tables are rejected" $ do
         let rejected = either (const True) (const False) . parseNonceTable . BS8.pack
         -- no header, a gap, a bad nonce
@@ -52,6 +88,7 @@ tests =
     ]
  where
   n = mkNonceFromNumber
+  t5to6 = NonceTable (EpochNo 5) (EpochNo 6) (Map.fromList [(EpochNo 5, n 5), (EpochNo 6, NeutralNonce)])
   nonce = either error id . hexNonce
   coverage net =
     let t = nonceTable net

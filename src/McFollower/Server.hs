@@ -469,8 +469,9 @@ getEpochNonce env req =
     -- Recorded by whichever process runs the producers, so that a server
     -- without a sync loop (--no-sync) withholds the nonces too.
     divergence <- loadNonceDivergence eds
+    supplied <- loadSuppliedNonce eds epoch
     fromDriver <- loadEpochNonce eds epoch
-    nonce <- epochAnswer (answerEpochNonce edcNonceTable divergence fromDriver epoch)
+    nonce <- epochAnswer (answerEpochNonce edcNonceTable divergence supplied fromDriver epoch)
     pure (defMessage & #maybe'nonce .~ nonce)
 
 getUnspentOutputsAtAddress :: Env -> P.GetUnspentOutputsAtAddressRequest -> (P.AddressOutputRow -> IO ()) -> IO ()

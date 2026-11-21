@@ -94,8 +94,8 @@ data EpochAnswer a
   -- ^ The stored data contradicts itself: @INTERNAL@.
   deriving stock (Eq, Show)
 
--- | @GetEpochNonce@: the shipped table up to its last epoch, the nonce
--- driver's stored nonces after it.
+-- | @GetEpochNonce@: the shipped table up to its last epoch, then nonces
+-- supplied at run time (@--epoch-nonces@), then the nonce driver's.
 --
 -- * A known nonce: its 32 bytes.
 -- * The neutral nonce, and epochs before the table (Byron): absent, as
@@ -104,9 +104,22 @@ data EpochAnswer a
 --   started on the indexer's chain, the driver has not reached it, or there
 --   is no driver): not available.
 -- * A driver nonce while the driver is known to diverge from a local node:
---   not available.
-answerEpochNonce :: NonceTable -> Maybe Text -> Maybe Nonce -> EpochNo -> EpochAnswer (Maybe ByteString)
-answerEpochNonce table divergence fromDriver epoch = case lookupEpochNonce table fromDriver epoch of
+--   not available. A supplied nonce is served regardless.
+answerEpochNonce :: NonceTable -> Maybe Text -> Maybe Nonce -> Maybe Nonce -> EpochNo -> EpochAnswer (Maybe ByteString)
+answerEpochNonce table divergence supplied fromDriver epoch
+  | epoch > ntLast table
+  , Just s <- supplied = case fromDriver of
+      Just d
+        | d /= s ->
+            Inconsistent
+              ( "the supplied nonce of epoch " <> epochText epoch <> " (" <> showText s
+                  <> ") differs from the nonce driver's (" <> showText d <> ")"
+              )
+      _ -> Answer (nonceBytes s)
+  | otherwise = fromTableOrDriver table divergence fromDriver epoch
+
+fromTableOrDriver :: NonceTable -> Maybe Text -> Maybe Nonce -> EpochNo -> EpochAnswer (Maybe ByteString)
+fromTableOrDriver table divergence fromDriver epoch = case lookupEpochNonce table fromDriver epoch of
   Left NonceConflict {ncTable, ncDriver} ->
     Inconsistent
       ( "the shipped nonce of epoch " <> epochText epoch <> " (" <> showText ncTable
@@ -116,7 +129,7 @@ answerEpochNonce table divergence fromDriver epoch = case lookupEpochNonce table
   Right NotYetAvailable ->
     NotAvailable
       ( "the nonce of epoch " <> epochText epoch <> " is not known yet: the shipped table ends at epoch "
-          <> epochText (ntLast table) <> " and the nonce driver has not produced it"
+          <> epochText (ntLast table) <> ", no nonce was supplied for it (--epoch-nonces) and the nonce driver has not produced it"
       )
   Right (NonceInForce n)
     | epoch > ntLast table

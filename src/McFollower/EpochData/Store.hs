@@ -25,6 +25,8 @@ module McFollower.EpochData.Store
   , applyChainEvent
   , recordStart
   , epochNonce
+  , supplyNonces
+  , suppliedTable
 
     -- * In memory
   , InMemoryEpochData (..)
@@ -50,7 +52,10 @@ import McFollower.EpochNonceTable
   ( EpochNonceLookup
   , NonceConflict
   , NonceTable
+  , SupplyError (..)
   , checkAgainstTable
+  , checkSupplied
+  , extendTable
   , lookupEpochNonce
   )
 import McFollower.Nonce
@@ -93,6 +98,12 @@ data EpochDataStore m = EpochDataStore
   , loadCommitteeVotes :: m [CommitteeVote]
   -- ^ The votes on sighted proposals, in chain order.
   , loadMaxTxSize :: EpochNo -> m (Maybe Word32)
+  , storeSuppliedNonces :: Map EpochNo Nonce -> m ()
+  -- ^ Add epoch nonces given at run time; see 'supplyNonces'.
+  , loadSuppliedNonces :: m (Map EpochNo Nonce)
+  , loadSuppliedNonce :: EpochNo -> m (Maybe Nonce)
+  , loadFirstDriverEpoch :: m (Maybe EpochNo)
+  -- ^ The earliest epoch the driver has produced a nonce for.
   , storeNonceDivergence :: Maybe Text -> m ()
   -- ^ The outcome of the latest cross-check of the nonce driver against a
   -- local node: what disagreed, or 'Nothing' when they agreed. Kept until
@@ -156,6 +167,30 @@ epochNonce table store epoch = do
   fromDriver <- loadEpochNonce store epoch
   pure (lookupEpochNonce table fromDriver epoch)
 
+-- | Merge epoch nonces given at run time (an @--epoch-nonces@ file) into
+-- the store, on top of the shipped table. Every supplied nonce must agree
+-- with any value its epoch already has: in the shipped table, among the
+-- nonces supplied before, or produced by the nonce driver; and together
+-- they must continue the table without a gap ('checkSupplied'). Nothing is
+-- stored if one does not. Returns the table extended by every supplied
+-- nonce.
+supplyNonces :: Monad m => NonceTable -> EpochDataStore m -> Map EpochNo Nonce -> m (Either SupplyError NonceTable)
+supplyNonces table store file = do
+  stored <- loadSuppliedNonces store
+  case checkSupplied table stored file of
+    Left e -> pure (Left e)
+    Right new -> do
+      fromDriver <- traverse (\(e, n) -> fmap (\d -> (e, d, n)) <$> loadEpochNonce store e) (Map.toAscList file)
+      case [SuppliedConflict e "the nonce driver" d n | Just (e, d, n) <- fromDriver, d /= n] of
+        c : _ -> pure (Left c)
+        [] -> do
+          storeSuppliedNonces store new
+          pure (Right (extendTable table (Map.union stored file)))
+
+-- | The shipped table extended by the nonces supplied so far.
+suppliedTable :: Monad m => NonceTable -> EpochDataStore m -> m NonceTable
+suppliedTable table store = extendTable table <$> loadSuppliedNonces store
+
 -- | Everything an in-memory store holds.
 data InMemoryEpochData = InMemoryEpochData
   { imCheckpoints :: !(Seq Checkpoint)
@@ -165,6 +200,7 @@ data InMemoryEpochData = InMemoryEpochData
   , imStake :: !(Map EpochNo EpochStake)
   , imMaxTxSize :: !(Map EpochNo Word32)
   , imNonceDivergence :: !(Maybe Text)
+  , imSupplied :: !(Map EpochNo Nonce)
   }
   deriving stock (Show)
 
@@ -172,7 +208,7 @@ data InMemoryEpochData = InMemoryEpochData
 -- (use @k + 1@). Also returns a way to read the whole contents.
 newInMemoryStore :: Int -> IO (EpochDataStore IO, IO InMemoryEpochData)
 newInMemoryStore keep = do
-  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] [] Map.empty Map.empty Nothing)
+  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] [] Map.empty Map.empty Nothing Map.empty)
   pure (store ref, readIORef ref)
  where
   store :: IORef InMemoryEpochData -> EpochDataStore IO
@@ -205,6 +241,10 @@ newInMemoryStore keep = do
           let sighted = Set.fromList (map mssProposal (imSightings s))
           pure (filter ((`Set.member` sighted) . cvProposal) (imVotes s))
       , loadMaxTxSize = \e -> Map.lookup e . imMaxTxSize <$> readIORef ref
+      , storeSuppliedNonces = \ns -> modify ref $ \s -> s {imSupplied = Map.union (imSupplied s) ns}
+      , loadSuppliedNonces = imSupplied <$> readIORef ref
+      , loadSuppliedNonce = \e -> Map.lookup e . imSupplied <$> readIORef ref
+      , loadFirstDriverEpoch = fmap fst . Map.lookupMin . imEpochNonces <$> readIORef ref
       , storeNonceDivergence = \d -> modify ref $ \s -> s {imNonceDivergence = d}
       , loadNonceDivergence = imNonceDivergence <$> readIORef ref
       }

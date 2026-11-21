@@ -110,7 +110,7 @@ mc-follower serve --network NAME (UPSTREAM | --no-sync) --db PATH [--listen HOST
   its points.
 - `--db`: the database file; created if missing. A database is bound to the
   network and the watch set it was created with and refuses to open with
-  others, or with another schema version (the current one is 4; a database
+  others, or with another schema version (the current one is 5; a database
   of an older version is refused, never migrated: start a new one).
 - `--from`: where a new database starts; the first block indexed is the one
   after this point. The default is the network's preset start point
@@ -136,9 +136,10 @@ Epoch data options (both commands; see the next section):
 | `--mithril` / `--no-mithril` | Fetch stake distributions from Mithril; default on with relays, off with `--socket` |
 | `--mithril-aggregator URL` | Default: the network's release aggregator (`McFollower.EpochData.Mithril.aggregatorFor`) |
 | `--stake-backfill-epochs N` | Keep stake for the N epochs before the tip epoch, and the next one (default 6) |
+| `--epoch-nonces FILE` | Epoch nonces continuing the shipped table, merged into the database (see Epoch nonces) |
 
-With `serve --no-sync` only `--max-tx-size` and `--acknowledge-proposal`
-matter (they shape answers); the others belong to the process that syncs.
+With `serve --no-sync` only `--max-tx-size`, `--acknowledge-proposal` and
+`--epoch-nonces` matter; the others belong to the process that syncs.
 
 Restarting resumes from the stored chain: the tip, then blocks 1, 2, 4, 8,
 ... below it, then the start point. Rollbacks reported by the upstream undo
@@ -172,7 +173,7 @@ bridge label 6500973; and the epoch data below.
 
 ### Epoch nonces
 
-`GetEpochNonce` combines two sources (`McFollower.EpochNonceTable`):
+`GetEpochNonce` combines three sources (`McFollower.EpochNonceTable`):
 
 - **The shipped table** `data/epoch-nonces/NETWORK.csv`: db-sync
   `epoch_param.nonce` of every past epoch, read from Koios (source and
@@ -185,6 +186,29 @@ bridge label 6500973; and the epoch data below.
   Where the table also has an epoch the driver produces, the two must agree;
   a disagreement stops the sync at that block (nothing of the block is
   stored).
+- **Supplied nonces** (`--epoch-nonces FILE`) for epochs between the
+  shipped table and the driver's start, see below.
+
+The driver can only produce the nonces from the epoch of its trusted state
+on. If that epoch is later than the shipped table's last epoch + 1, the
+epochs in between would never be known. Fill them without a rebuild:
+
+```sh
+scripts/fetch-epoch-nonces.py preview CACHE_DIR > nonces.csv
+mc-follower serve --network preview ... --epoch-nonces nonces.csv
+```
+
+The file has the format of `data/epoch-nonces/*.csv`. Its nonces are merged
+into the database on top of the shipped table and kept there, so the option
+is needed once. Every nonce must equal any value its epoch already has (in
+the shipped table, among nonces supplied before, or produced by the
+driver), and the file must continue the table without a gap; otherwise the
+startup fails naming the epoch and nothing is merged. If a gap remains
+between the table (with the supplied nonces) and the driver's first epoch,
+`sync` and `serve` refuse to start, naming the missing epochs;
+`serve --no-sync` logs it as an `ERROR` and serves, answering those epochs
+with `UNAVAILABLE`. `serve --no-sync --epoch-nonces FILE` merges into an
+existing database.
 
 The driver supports Praos eras only (Babbage onward). Its trusted starting
 state is given as JSON:
@@ -328,7 +352,8 @@ answered as absent:
 | `GetEpochNonce` | epoch in the shipped table, or produced by the driver | the nonce |
 | | the nonce is the neutral one (db-sync NULL) | absent |
 | | before the table (Byron; db-sync has no row) | absent |
-| | after the table, not produced by the driver | `UNAVAILABLE` |
+| | after the table, supplied with `--epoch-nonces` | the nonce |
+| | after the table, not supplied, not produced by the driver | `UNAVAILABLE` |
 | | produced by the driver while it diverges from the local node | `UNAVAILABLE` |
 | `GetStakeDistribution` | stored complete | the pools, by pool hash |
 | | before the first Shelley epoch (db-sync has no rows) | empty |

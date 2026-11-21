@@ -19,6 +19,9 @@
 --   start point. Epoch data from outside the chain (stake distributions and
 --   @maxTxSize@ read from a node or Mithril at an immutable point) is keyed
 --   by epoch only.
+-- * @supplied_epoch_nonce@ holds epoch nonces given at run time
+--   (@--epoch-nonces@) that continue the shipped table; they come from
+--   outside the chain and are keyed by epoch only.
 -- * @nonce_divergence@ holds at most one row: set while the last
 --   cross-check of the nonce driver against a local node disagreed, so
 --   that every process serving the database withholds the driver's nonces.
@@ -35,8 +38,9 @@ import Data.Text (Text)
 -- * 3: @nonce_divergence@.
 -- * 4: @committee_vote@ (a version 3 database lacks the votes of the
 --   blocks it already holds, so it cannot be brought up to date).
+-- * 5: @supplied_epoch_nonce@.
 schemaVersion :: Int
-schemaVersion = 4
+schemaVersion = 5
 
 schema :: Text
 schema =
@@ -160,6 +164,11 @@ schema =
   \  PRIMARY KEY (block_id, proposal, voter)\n\
   \) STRICT, WITHOUT ROWID;\n\
   \CREATE INDEX committee_vote_proposal ON committee_vote (proposal);\n\
+  \\n\
+  \CREATE TABLE supplied_epoch_nonce (\n\
+  \  epoch_no INTEGER PRIMARY KEY,\n\
+  \  nonce BLOB\n\
+  \) STRICT;\n\
   \\n\
   \CREATE TABLE nonce_divergence (\n\
   \  id INTEGER PRIMARY KEY CHECK (id = 1),\n\

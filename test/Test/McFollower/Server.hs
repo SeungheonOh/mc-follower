@@ -31,8 +31,8 @@ import Data.Text qualified as Text
 import McFollower.EpochData.MaxTxSize (MaxTxSizeSighting (..), MaxTxSizeTable (..), ProposalRef, parseProposalRef)
 import McFollower.EpochData.Serve (EpochDataConfig (..), EpochHealth (..), healthy)
 import McFollower.EpochData.Stake (EpochStake (..), SnapshotLabel (..), StakeSource (..))
-import McFollower.EpochData.Store (EpochDataStore (..))
-import McFollower.EpochNonceTable (NonceTable (..))
+import McFollower.EpochData.Store (EpochDataStore (..), suppliedTable, supplyNonces)
+import McFollower.EpochNonceTable (NonceTable (..), SupplyError (..))
 import McFollower.Nonce (Checkpoint (..), EpochNonce (..))
 import McFollower.Store (Store, applyBlock, applyBlockWith, closeStore, withEpochData)
 import McFollower.Sync (UpstreamTip (..))
@@ -293,6 +293,24 @@ tests =
                   expectCode GrpcUnavailable (nonce c 1)
                   record Nothing
                   nonce c 1 >>= (@?= Just (hash32 0xee 1))
+          , testCase "epoch nonce: supplied nonces continue the table, in the database" $
+              bracket setup (closeStore . snd) $ \(path, store) -> do
+                let nonce c e = (^. #maybe'nonce) . getProto <$> nonStreaming c (rpc @P.GetEpochNonce) (Proto (defMessage & #epochNo .~ e))
+                    table = edcNonceTable (epochDataConfig (pure healthy))
+                withClient path (pure notFollowing) $ \c -> do
+                  expectCode GrpcUnavailable (nonce c 2)
+                  -- The driver's nonce of epoch 1 is checked in the database.
+                  driverConflict <- withEpochData store $ \eds -> supplyNonces table eds (Map.fromList [(EpochNo 1, nonceOf 0x11)])
+                  fmap ntLast driverConflict @?= Left (SuppliedConflict (EpochNo 1) "the nonce driver" (nonceOf 0xee) (nonceOf 0x11))
+                  -- Epoch 1 agrees with the driver's nonce, epoch 2 is new.
+                  merged <- withEpochData store $ \eds ->
+                    supplyNonces table eds (Map.fromList [(EpochNo 1, nonceOf 0xee), (EpochNo 2, nonceOf 0x22)])
+                  fmap ntLast merged @?= Right (EpochNo 2)
+                  nonce c 2 >>= (@?= Just (hash32 0x22 1))
+                  -- A conflict is refused and changes nothing.
+                  conflict <- withEpochData store $ \eds -> supplyNonces table eds (Map.fromList [(EpochNo 2, nonceOf 0x11)])
+                  fmap ntLast conflict @?= Left (SuppliedConflict (EpochNo 2) "nonces supplied earlier" (nonceOf 0x22) (nonceOf 0x11))
+                  withEpochData store (fmap ntLast . suppliedTable table) >>= (@?= EpochNo 2)
           , testCase "unspent outputs at an address, with inputs and optional datums" $ do
               rows <- call getStore (\c -> streamed c (rpc @P.GetUnspentOutputsAtAddress) (defMessage & #address .~ "map" & #blockNo .~ 1))
               map (\r -> (r ^. #txBlockNo, r ^. #txIndexInBlock, r ^. #utxoIndex)) rows @?= [(1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1)]
