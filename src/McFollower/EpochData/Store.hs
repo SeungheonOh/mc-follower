@@ -12,8 +12,9 @@
 -- * @maxTxSize@ sightings.
 --
 -- Independently of blocks it keeps per-epoch stake distributions (only
--- complete ones are served) and, in node-to-client mode, per-epoch
--- @maxTxSize@ read from the node.
+-- complete ones are served), and in node-to-client mode per-epoch
+-- @maxTxSize@ read from the node and whether the nonce driver disagrees
+-- with the node.
 --
 -- 'applyChainEvent' is the glue between a block source and the store, and
 -- 'epochNonce' what @GetEpochNonce@ serves (shipped table, then driver;
@@ -39,6 +40,7 @@ import Data.Map.Strict qualified as Map
 import Data.Sequence (Seq, (|>))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Text (Text)
 import Data.Word (Word32)
 import McFollower.Block (Block)
 import McFollower.BlockSource (ChainEvent (..))
@@ -86,6 +88,12 @@ data EpochDataStore m = EpochDataStore
   -- ^ Only a complete distribution.
   , loadSightings :: m [MaxTxSizeSighting]
   , loadMaxTxSize :: EpochNo -> m (Maybe Word32)
+  , storeNonceDivergence :: Maybe Text -> m ()
+  -- ^ The outcome of the latest cross-check of the nonce driver against a
+  -- local node: what disagreed, or 'Nothing' when they agreed. Kept until
+  -- the next check, across restarts.
+  , loadNonceDivergence :: m (Maybe Text)
+  -- ^ While set, the driver's nonces are not served.
   }
 
 -- | Why feeding the store failed.
@@ -150,6 +158,7 @@ data InMemoryEpochData = InMemoryEpochData
   , imSightings :: ![MaxTxSizeSighting]
   , imStake :: !(Map EpochNo EpochStake)
   , imMaxTxSize :: !(Map EpochNo Word32)
+  , imNonceDivergence :: !(Maybe Text)
   }
   deriving stock (Show)
 
@@ -157,7 +166,7 @@ data InMemoryEpochData = InMemoryEpochData
 -- (use @k + 1@). Also returns a way to read the whole contents.
 newInMemoryStore :: Int -> IO (EpochDataStore IO, IO InMemoryEpochData)
 newInMemoryStore keep = do
-  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] Map.empty Map.empty)
+  ref <- newIORef (InMemoryEpochData Seq.empty Map.empty [] Map.empty Map.empty Nothing)
   pure (store ref, readIORef ref)
  where
   store :: IORef InMemoryEpochData -> EpochDataStore IO
@@ -185,6 +194,8 @@ newInMemoryStore keep = do
             _ -> Nothing
       , loadSightings = imSightings <$> readIORef ref
       , loadMaxTxSize = \e -> Map.lookup e . imMaxTxSize <$> readIORef ref
+      , storeNonceDivergence = \d -> modify ref $ \s -> s {imNonceDivergence = d}
+      , loadNonceDivergence = imNonceDivergence <$> readIORef ref
       }
 
   modify ref f = atomicModifyIORef' ref (\s -> (f s, ()))

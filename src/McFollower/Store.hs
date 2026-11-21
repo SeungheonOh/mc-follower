@@ -469,6 +469,14 @@ epochDataStore store@Store {storeConn = c, storeSecurityParam = k} =
           \FROM max_tx_size_sighting s JOIN block b ON b.id = s.block_id ORDER BY s.block_id, s.proposal"
           []
           >>= mapM sightingRow
+    , storeNonceDivergence = \case
+        Nothing -> execute c "DELETE FROM nonce_divergence" []
+        Just detail -> execute c "INSERT OR REPLACE INTO nonce_divergence (id, detail) VALUES (1, ?)" [SQLText detail]
+    , loadNonceDivergence =
+        query c "SELECT detail FROM nonce_divergence" [] >>= \case
+          [] -> pure Nothing
+          [[SQLText d]] -> pure (Just d)
+          rows -> rowError "nonce_divergence" (concat rows)
     , loadMaxTxSize = \(EpochNo e) ->
         query c "SELECT max_tx_size FROM epoch_param WHERE epoch_no = ?" [int e] >>= \case
           [] -> pure Nothing

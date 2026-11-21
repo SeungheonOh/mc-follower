@@ -9,8 +9,9 @@
 --   set and mark; complete since the state is immutable), @maxTxSize@ of
 --   @e@, and the node's Praos state, which is compared with the nonce
 --   driver's checkpoint for the same block. A disagreement is logged at
---   every check and withholds the driver's nonces from serving
---   ('ehNonceDivergence').
+--   every check and recorded in the store, which withholds the driver's
+--   nonces from serving in every process that serves the database, until a
+--   later check agrees.
 --
 -- * From a Mithril aggregator (by default in node-to-node mode, optionally
 --   with a node for epochs outside its three-epoch window): the stake
@@ -86,15 +87,14 @@ data MithrilSource = MithrilSource
   -- ^ How many epochs before the tip epoch to keep stake for.
   }
 
--- | What the producers report for @GetStatus@ and serving.
-data ProducerHealth = ProducerHealth
-  { phMissingStake :: ![EpochNo]
-  , phNonceDivergence :: !(Maybe Text)
+-- | What the producers report for @GetStatus@.
+newtype ProducerHealth = ProducerHealth
+  { phMissingStake :: [EpochNo]
   }
   deriving stock (Eq, Show)
 
 noProblems :: ProducerHealth
-noProblems = ProducerHealth [] Nothing
+noProblems = ProducerHealth []
 
 data Retry = Retry
   { rNext :: !UTCTime
@@ -176,13 +176,13 @@ nodeStep ProducerConfig {..} store node stateVar tipEpoch = do
         case crossCheck (nedPoint ned) (nedProtocolState ned) (resumeDriver pcNonceConfig stored) of
           Agree p -> do
             pcLog ("epoch data: nonce driver agrees with the node at " <> renderPoint p)
-            atomicModifyIORef' pcHealth (\h -> (h {phNonceDivergence = Nothing}, ()))
+            withEpochData store (`storeNonceDivergence` Nothing)
           NotInWindow p ->
             pcLog ("epoch data: nonce cross-check skipped: no driver checkpoint for the node's immutable tip " <> renderPoint p)
           Diverge p fields -> do
             let msg = "at " <> renderPoint p <> ": " <> showText fields
             pcLog ("epoch data: ERROR the nonce driver DIVERGES from the node " <> msg <> "; its nonces are withheld")
-            atomicModifyIORef' pcHealth (\h -> (h {phNonceDivergence = Just msg}, ()))
+            withEpochData store (`storeNonceDivergence` Just msg)
 
 mithrilStep :: ProducerConfig -> Store -> MithrilSource -> Manager -> IORef State -> Maybe EpochNo -> IO ()
 mithrilStep cfg@ProducerConfig {..} store MithrilSource {msAggregator} manager stateVar tipEpoch = do

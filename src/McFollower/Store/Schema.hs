@@ -18,6 +18,9 @@
 --   start point. Epoch data from outside the chain (stake distributions and
 --   @maxTxSize@ read from a node or Mithril at an immutable point) is keyed
 --   by epoch only.
+-- * @nonce_divergence@ holds at most one row: set while the last
+--   cross-check of the nonce driver against a local node disagreed, so
+--   that every process serving the database withholds the driver's nonces.
 module McFollower.Store.Schema
   ( schemaVersion
   , schema
@@ -26,9 +29,11 @@ module McFollower.Store.Schema
 import Data.Text (Text)
 
 -- | Stored in @PRAGMA user_version@. A database with another version is
--- refused.
+-- refused; there are no migrations, a new version needs a new database.
+--
+-- * 3: @nonce_divergence@.
 schemaVersion :: Int
-schemaVersion = 2
+schemaVersion = 3
 
 schema :: Text
 schema =
@@ -142,6 +147,11 @@ schema =
   \  earliest_epoch INTEGER NOT NULL,\n\
   \  PRIMARY KEY (block_id, proposal)\n\
   \) STRICT, WITHOUT ROWID;\n\
+  \\n\
+  \CREATE TABLE nonce_divergence (\n\
+  \  id INTEGER PRIMARY KEY CHECK (id = 1),\n\
+  \  detail TEXT NOT NULL\n\
+  \) STRICT;\n\
   \\n\
   \CREATE TABLE epoch_param (\n\
   \  epoch_no INTEGER PRIMARY KEY,\n\

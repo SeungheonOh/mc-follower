@@ -464,10 +464,13 @@ getEpochNonce :: Env -> P.GetEpochNonceRequest -> IO P.GetEpochNonceResponse
 getEpochNonce env req =
   answering env $ \_ snap -> do
     let epoch = EpochNo (fromIntegral (req ^. #epochNo))
-        EpochDataConfig {edcNonceTable, edcHealth} = svEpochData (envConfig env)
-    EpochHealth {ehNonceDivergence} <- edcHealth
-    fromDriver <- loadEpochNonce (snapshotEpochData snap) epoch
-    nonce <- epochAnswer (answerEpochNonce edcNonceTable ehNonceDivergence fromDriver epoch)
+        EpochDataConfig {edcNonceTable} = svEpochData (envConfig env)
+        eds = snapshotEpochData snap
+    -- Recorded by whichever process runs the producers, so that a server
+    -- without a sync loop (--no-sync) withholds the nonces too.
+    divergence <- loadNonceDivergence eds
+    fromDriver <- loadEpochNonce eds epoch
+    nonce <- epochAnswer (answerEpochNonce edcNonceTable divergence fromDriver epoch)
     pure (defMessage & #maybe'nonce .~ nonce)
 
 getUnspentOutputsAtAddress :: Env -> P.GetUnspentOutputsAtAddressRequest -> (P.AddressOutputRow -> IO ()) -> IO ()

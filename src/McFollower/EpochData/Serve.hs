@@ -66,7 +66,7 @@ data EpochDataConfig = EpochDataConfig
   , edcFirstShelleyEpoch :: !EpochNo
   -- ^ db-sync has no stake distribution for earlier (Byron) epochs.
   , edcHealth :: !(IO EpochHealth)
-  -- ^ The producers' view, for @GetStatus@ and the nonce cross-check.
+  -- ^ The producers' view, for @GetStatus@.
   }
 
 -- | How the epoch data producers are doing (see
@@ -77,15 +77,12 @@ data EpochHealth = EpochHealth
   , ehMissingStake :: ![EpochNo]
   -- ^ Epochs in the backfill window whose stake distribution the indexer
   -- expects to obtain and has not yet.
-  , ehNonceDivergence :: !(Maybe Text)
-  -- ^ Set when the driver's protocol state disagrees with a local node's
-  -- at the same block. Nonces the driver produced are then not served.
   }
   deriving stock (Eq, Show)
 
 -- | Nothing known to be wrong or missing.
 healthy :: EpochHealth
-healthy = EpochHealth "unknown" [] Nothing
+healthy = EpochHealth "unknown" []
 
 data EpochAnswer a
   = Answer !a

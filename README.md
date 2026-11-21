@@ -110,7 +110,7 @@ mc-follower serve --network NAME (UPSTREAM | --no-sync) --db PATH [--listen HOST
   its points.
 - `--db`: the database file; created if missing. A database is bound to the
   network and the watch set it was created with and refuses to open with
-  others, or with another schema version (the current one is 2; a database
+  others, or with another schema version (the current one is 3; a database
   of an older version is refused, never migrated: start a new one).
 - `--from`: where a new database starts; the first block indexed is the one
   after this point. The default is the network's preset start point
@@ -325,9 +325,8 @@ answered as absent:
 the network magic, the upstream tip and whether the indexer is behind it.
 Stake distributions in the backfill window that are not stored yet are
 listed in `backfilling` as `stake-distribution:epoch:N` (requests for them
-answer `UNAVAILABLE`) and count as `syncing`. The nonce driver's state and a
-divergence from the node are in the log only (the proto has no field for
-them).
+answer `UNAVAILABLE`) and count as `syncing`. The nonce driver's state is
+in the log only (the proto has no field for it).
 
 ## Operational notes
 
@@ -350,7 +349,9 @@ them).
   shipped table, a trusted point that is not on the followed chain, a header
   of a non-Praos era after the driver started. A disagreement between the
   driver and the local node's protocol state (N2C) is logged as `ERROR` at
-  every check and withholds the driver's nonces from serving.
+  every check and recorded in the database, so that every process serving
+  it (a separate `serve --no-sync` included) withholds the driver's nonces
+  until a later check agrees.
 - **N2C** paths (node state queries, the node's protocol state, the
   cross-check) compile but have not been run against a node yet.
 

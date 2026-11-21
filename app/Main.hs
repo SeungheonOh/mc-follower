@@ -374,7 +374,7 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
   stopped <- try $ case svoUpstream of
     Nothing -> do
       checkExisting identity
-      let health = pure (EpochHealth "not run by this process" [] Nothing)
+      let health = pure (EpochHealth "not run by this process" [])
       withServer (server (pure notFollowing) health) $ \bound -> do
         listening bound
         forever (threadDelay maxBound)
@@ -388,8 +388,8 @@ serve ServeOptions {svoNetwork, svoUpstream, svoDatabase, svoStart, svoListen = 
         let status = SyncStatus True <$> readIORef upstreamTip
             health = do
               driver <- readIORef driverVar
-              ProducerHealth {phMissingStake, phNonceDivergence} <- readIORef healthVar
-              pure (EpochHealth (renderDriverState driver) phMissingStake phNonceDivergence)
+              ProducerHealth {phMissingStake} <- readIORef healthVar
+              pure (EpochHealth (renderDriverState driver) phMissingStake)
         withServer (server status health) $ \bound -> do
           listening bound
           index svoNetwork upstream svoEpoch svoDatabase identity wf Nothing (atomicWriteIORef upstreamTip) driverVar healthVar store

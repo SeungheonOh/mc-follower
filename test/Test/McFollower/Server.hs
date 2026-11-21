@@ -7,7 +7,7 @@ module Test.McFollower.Server (tests) where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (try)
+import Control.Exception (bracket, try)
 import Control.Monad (replicateM)
 import Control.Monad.Trans.Reader (ReaderT)
 import Data.ByteString (ByteString)
@@ -280,14 +280,18 @@ tests =
               nonce 0 >>= (@?= Just (hash32 0xe0 1))
               nonce 1 >>= (@?= Just (hash32 0xee 1))
               expectCode GrpcUnavailable (nonce 2)
-          , testCase "epoch nonce: the driver's withheld while it diverges from the node" $ do
-              (path, _) <- getStore
-              let diverged = pure healthy {ehNonceDivergence = Just "at some point"}
-                  nonce c e = (^. #maybe'nonce) . getProto <$> nonStreaming c (rpc @P.GetEpochNonce) (Proto (defMessage & #epochNo .~ e))
-              withServer (configWith path (pure notFollowing) diverged) $ \port ->
-                withConnection def (ServerInsecure (Address "127.0.0.1" port Nothing)) $ \c -> do
+          , testCase "epoch nonce: the driver's withheld while the store records a divergence from the node" $
+              bracket setup (closeStore . snd) $ \(path, store) -> do
+                -- The divergence is written by another connection, as a
+                -- separate sync process would; the server only reads it.
+                let nonce c e = (^. #maybe'nonce) . getProto <$> nonStreaming c (rpc @P.GetEpochNonce) (Proto (defMessage & #epochNo .~ e))
+                    record d = withEpochData store (`storeNonceDivergence` d)
+                withClient path (pure notFollowing) $ \c -> do
+                  record (Just "at some point")
                   nonce c 0 >>= (@?= Just (hash32 0xe0 1))
                   expectCode GrpcUnavailable (nonce c 1)
+                  record Nothing
+                  nonce c 1 >>= (@?= Just (hash32 0xee 1))
           , testCase "unspent outputs at an address, with inputs and optional datums" $ do
               rows <- call getStore (\c -> streamed c (rpc @P.GetUnspentOutputsAtAddress) (defMessage & #address .~ "map" & #blockNo .~ 1))
               map (\r -> (r ^. #txBlockNo, r ^. #txIndexInBlock, r ^. #utxoIndex)) rows @?= [(1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1)]
