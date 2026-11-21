@@ -8,6 +8,16 @@
 -- drains it, folds rollbacks into the headers it has not fetched yet
 -- ("McFollower.BlockSource.N2N.Pending"), fetches the rest in ranges and
 -- delivers blocks in chain order.
+--
+-- Memory is bounded by backpressure: the block-fetch client stops draining
+-- the queue while 'watermarks' high (2000) headers are pending and resumes
+-- at low (1000), and chain-sync blocks on the full queue ('headerQueueSize',
+-- 1000 events). So at most 3000 headers are pending and 1000 events
+-- queued. The one exception is a relay that answers a range request with
+-- no blocks: events are then taken regardless until chain-sync's rollback
+-- arrives, and if that would take more than 'pendingLimit' headers the
+-- connection is dropped and re-established (the consumer resumes from what
+-- it was delivered).
 module McFollower.BlockSource.N2N
   ( n2nBlockSource
   ) where
@@ -23,8 +33,8 @@ import Control.Concurrent.STM
   , readTBQueue
   , writeTBQueue
   )
-import Control.Exception (throwIO)
-import Control.Monad (forever, unless)
+import Control.Exception (Exception, throwIO)
+import Control.Monad (forever, unless, when)
 import Control.Tracer (Tracer, nullTracer, traceWith)
 import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (fold, traverse_)
@@ -44,7 +54,7 @@ import McFollower.BlockSource
   , reconnecting
   )
 import McFollower.BlockSource.ChainSync (chainSyncClient)
-import McFollower.BlockSource.N2N.Pending (Announced (..))
+import McFollower.BlockSource.N2N.Pending (Announced (..), Intake (..), Watermarks (..))
 import McFollower.BlockSource.N2N.Pending qualified as Pending
 import McFollower.Network
   ( NetworkConfig (..)
@@ -231,18 +241,24 @@ blockFetchClient tracer headers ds = do
   pendingVar <- newIORef Pending.empty
   -- Set after 'MsgNoBlocks': do not retry until chain-sync has news.
   stalledVar <- newIORef False
+  -- Set while too many headers are pending to take more ('Pending.intake').
+  pausedVar <- newIORef False
   let client = BlockFetchClient request
 
       request = do
         pending <- readIORef pendingVar
         stalled <- readIORef stalledVar
+        paused <- readIORef pausedVar
+        let (mode, paused') = Pending.intake watermarks paused stalled pending
+        writeIORef pausedVar paused'
         events <-
-          atomically $
-            if Pending.null pending || stalled
-              then (:) <$> readTBQueue headers <*> flushTBQueue headers
-              else flushTBQueue headers
+          atomically $ case mode of
+            WaitAndTake -> (:) <$> readTBQueue headers <*> flushTBQueue headers
+            TakeQueued -> flushTBQueue headers
+            Hold -> pure []
         writeIORef stalledVar False
         let (pending', rollbacks) = Pending.applyEvents headerPoint events pending
+        when (Pending.size pending' > pendingLimit) $ throwIO (TooManyPendingHeaders (Pending.size pending'))
         writeIORef pendingVar pending'
         traverse_ (\(p, tip) -> dsDeliver ds (RollBackward p tip)) rollbacks
         case Pending.batch maxBatch pending' of
@@ -278,6 +294,22 @@ blockFetchClient tracer headers ds = do
 -- | Header events buffered between chain-sync and block-fetch.
 headerQueueSize :: Num n => n
 headerQueueSize = 1000
+
+-- | When the block-fetch side stops and resumes taking header events.
+watermarks :: Watermarks
+watermarks = Watermarks {wmHigh = 2000, wmLow = 1000}
+
+-- | More pending headers than intake ever takes outside of a stall; past
+-- it the connection is dropped.
+pendingLimit :: Int
+pendingLimit = wmHigh watermarks + headerQueueSize
+
+-- | The relay kept announcing headers while having no blocks for the
+-- pending ones. Ends the connection, not the source.
+newtype TooManyPendingHeaders = TooManyPendingHeaders Int
+  deriving stock (Show)
+
+instance Exception TooManyPendingHeaders
 
 -- | Blocks per range request.
 maxBatch :: Int

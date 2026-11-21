@@ -37,6 +37,19 @@ tests =
         let (pending, _) = apply (map forward [1 .. 5]) Pending.empty
         fmap (\(ChainRange from to, anns) -> (from, to, map annPoint anns)) (Pending.batch 2 pending)
           @?= Just (point 1, point 2, map point [1, 2])
+    , testCase "intake holds above the high-water mark until the low-water mark" $ do
+        let marks = Pending.Watermarks {Pending.wmHigh = 4, Pending.wmLow = 2}
+            pendingOf n = fst (apply (map forward [1 .. n]) Pending.empty)
+            step paused n = Pending.intake marks paused False (pendingOf n)
+        step False 0 @?= (Pending.WaitAndTake, False)
+        step False 3 @?= (Pending.TakeQueued, False)
+        step False 4 @?= (Pending.Hold, True)
+        step True 3 @?= (Pending.Hold, True)
+        step True 2 @?= (Pending.TakeQueued, False)
+    , testCase "intake waits for chain-sync after the relay had no blocks, even when holding" $ do
+        let marks = Pending.Watermarks {Pending.wmHigh = 4, Pending.wmLow = 2}
+            (pending, _) = apply (map forward [1 .. 5]) Pending.empty
+        Pending.intake marks True True pending @?= (Pending.WaitAndTake, True)
     , testCase "no batch when nothing is pending" $
         fmap fst (Pending.batch 2 (Pending.empty :: Pending Block ())) @?= Nothing
     , testCase "a rollback into pending headers stays local" $ do
