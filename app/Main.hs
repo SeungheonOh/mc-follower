@@ -645,7 +645,7 @@ followOptions =
     <*> upstreamOption
     <*> startOption
     <*> optional
-      (option auto (long "blocks" <> metavar "N" <> help "Stop after N blocks"))
+      (option natural (long "blocks" <> metavar "N" <> help "Stop after N blocks"))
 
 syncOptions :: Parser SyncOptions
 syncOptions =
@@ -664,7 +664,7 @@ syncOptions =
           )
       )
     <*> optional
-      (option auto (long "blocks" <> metavar "N" <> help "Stop after applying N blocks"))
+      (option natural (long "blocks" <> metavar "N" <> help "Stop after applying N blocks"))
     <*> epochOptions
 
 serveOptions :: Parser ServeOptions
@@ -736,7 +736,7 @@ epochOptions =
     <*> optional
       (strOption (long "mithril-aggregator" <> metavar "URL" <> help "Mithril aggregator (default: the network's)"))
     <*> option
-      auto
+      natural
       ( long "stake-backfill-epochs"
           <> metavar "N"
           <> value 6
@@ -753,8 +753,8 @@ epochOptions =
       )
  where
   parseMaxTxSize s = case break (== ':') s of
-    (e, ':' : v) | Just epoch <- readMaybe e, Just size <- readMaybe v -> Right (EpochNo epoch, size)
-    _ -> Left "expected EPOCH:BYTES"
+    (e, ':' : v) | Right epoch <- readNatural e, Right size <- readNatural v -> Right (EpochNo epoch, size)
+    _ -> Left "expected EPOCH:BYTES, two non-negative integers"
 
 fetchOptions :: Parser FetchOptions
 fetchOptions =
@@ -764,7 +764,7 @@ fetchOptions =
     <*> option
       (eitherReader (parsePoint . Text.pack))
       (long "from" <> metavar "origin|SLOT.HASH" <> help "Point to start after")
-    <*> option auto (long "blocks" <> metavar "N" <> help "Number of blocks")
+    <*> option natural (long "blocks" <> metavar "N" <> help "Number of blocks")
     <*> optional (strOption (long "out" <> metavar "DIR" <> help "Write blocks to DIR/SLOT.HASH.cbor"))
     <*> many
       ( strOption
@@ -791,6 +791,19 @@ queryOptions =
     "immutable" -> Right AtImmutableTip
     "volatile" -> Right AtVolatileTip
     s -> AtPoint <$> parsePoint (Text.pack s)
+
+-- | A non-negative integer that fits the type: 'auto' would wrap a
+-- negative or too large number around.
+natural :: (Integral a, Bounded a) => ReadM a
+natural = eitherReader readNatural
+
+readNatural :: forall a. (Integral a, Bounded a) => String -> Either String a
+readNatural s = case readMaybe @Integer s of
+  Just n
+    | n >= max 0 (toInteger (minBound :: a))
+    , n <= toInteger (maxBound :: a) ->
+        Right (fromInteger n)
+  _ -> Left ("expected an integer from 0 to " <> show (toInteger (maxBound :: a)) <> ", got " <> show s)
 
 networkOption :: Parser NetworkName
 networkOption =
