@@ -243,8 +243,43 @@ tests =
           "authority selection"
           [ testCase "latest block for epoch" $ do
               blockNoOf <$> call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 0)) >>= (@?= Just 9)
-              -- Epoch 1 is the tip's own epoch: not complete yet.
+              -- Epoch 1 is the tip's own epoch: not complete yet, and this
+              -- server does not follow the chain.
               expectCode GrpcUnavailable $ call getStore (\c -> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ 1))
+          , testCase "epoch bounds at or beyond the tip's epoch: as db-sync when caught up, UNAVAILABLE otherwise" $ do
+              (path, _) <- getStore
+              let blockFor c e = blockNoOf <$> unary c (rpc @P.GetLatestBlockForEpoch) (defMessage & #epochNo .~ e)
+                  tokenFor c e =
+                    fmap (\o -> (o ^. #txBlockNo, o ^. #txEpochNo))
+                      . (^. #maybe'output)
+                      <$> unary c (rpc @P.GetLatestTokenOutputForEpoch) (defMessage & #asset .~ assetMessage nightPolicy "" & #epochNo .~ e)
+                  following up = SyncStatus True (Just up)
+                  answers status health check =
+                    withServer (configWith path (pure status) (pure health)) $ \port ->
+                      withConnection def (ServerInsecure (Address "127.0.0.1" port Nothing)) check
+                  refuses status health =
+                    answers status health $ \c ->
+                      mapM_
+                        (\e -> expectCode GrpcUnavailable (blockFor c e) >> expectCode GrpcUnavailable (tokenFor c e))
+                        [1, 2, 985571]
+              -- Caught up (the upstream tip is the indexed tip, block 12 in
+              -- epoch 1): the latest rows up to the tip, as db-sync gives
+              -- for any epoch_no <= E at or beyond its tip's epoch.
+              answers (following (UpstreamTip 120 12)) healthy $ \c -> do
+                mapM (blockFor c) [1, 2, 985571] >>= (@?= replicate 3 (Just 12))
+                mapM (tokenFor c) [1, 2, 985571] >>= (@?= replicate 3 (Just (10, 1)))
+                -- Complete epochs as always.
+                blockFor c 0 >>= (@?= Just 9)
+                tokenFor c 0 >>= (@?= Just (7, 0))
+              -- Behind the upstream, before the first upstream tip, while a
+              -- stake distribution is being obtained, and without a sync
+              -- loop: the tip's epoch and later are refused, earlier ones
+              -- answered.
+              refuses (following (UpstreamTip 200 20)) healthy
+              refuses (SyncStatus True Nothing) healthy
+              refuses (following (UpstreamTip 120 12)) healthy {ehMissingStake = [EpochNo 2]}
+              refuses notFollowing healthy
+              answers (following (UpstreamTip 200 20)) healthy $ \c -> blockFor c 0 >>= (@?= Just 9)
           , testCase "latest stable epoch: signed, absent below k" $ do
               let stable k = (^. #maybe'epochNo) <$> call getStore (\c -> unary c (rpc @P.GetLatestStableEpoch) (defMessage & #securityParameter .~ k))
               stable 3 >>= (@?= Just (-1))

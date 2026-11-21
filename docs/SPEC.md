@@ -86,7 +86,7 @@ Importing nodes re-derive Cardano data and compare it bit for bit with the block
 
 Datum and metadata payloads are served as original CBOR bytes. The node decodes them; its gRPC row source produces the same decoded values the db-sync path produces from JSON.
 
-"Not known yet" is never served as "absent". Where the indexer cannot vouch that db-sync would have no row (an epoch nonce or stake distribution it has not obtained, a `max_tx_size` that may have changed, an epoch that is not complete, a bound beyond the indexed tip) it answers `UNAVAILABLE`, which the node treats as a failed data source.
+"Not known yet" is never served as "absent". Where the indexer cannot vouch that db-sync would have no row (an epoch nonce or stake distribution it has not obtained, a `max_tx_size` that may have changed, an epoch that is not complete while the indexer is behind its upstream, a bound beyond the indexed tip) it answers `UNAVAILABLE`, which the node treats as a failed data source.
 
 ## 5. gRPC contract
 

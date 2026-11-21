@@ -20,8 +20,9 @@
 --   index cannot answer as db-sync would.
 -- * @UNAVAILABLE@: the store cannot be opened (missing, not yet initialised,
 --   another network or watch set), no block is indexed yet, or the request
---   names a block number beyond the indexed tip or an epoch that is not
---   complete in the index (see 'completeEpoch'). Every block number
+--   names a block number beyond the indexed tip, or an epoch that is not
+--   complete in the index while the index is not caught up with its
+--   upstream (see 'answerableEpoch'). Every block number
 --   a node sends is derived from earlier answers of this indexer (its latest
 --   block or a block found by hash), so a bound beyond the tip means the
 --   index lost blocks in between (a rollback), and answering with what is
@@ -247,8 +248,8 @@ withinTip Q.BlockInfo {biNumber} what n =
   when (n > biNumber) $
     unavailable (what <> " is block " <> showText n <> " but the index ends at block " <> showText biNumber)
 
--- | An epoch bound must name an epoch that is complete on the indexed
--- chain.
+-- | An epoch bound is answered when the epoch is complete on the indexed
+-- chain, or when the indexer is caught up with its upstream.
 --
 -- @GetLatestBlockForEpoch@ (the last block with @epoch_no <= E@) and
 -- @GetLatestTokenOutputForEpoch@ (the last output carrying the asset
@@ -257,20 +258,70 @@ withinTip Q.BlockInfo {biNumber} what n =
 -- epoch @E@: a later block of @E@ is the new answer of the first, and may
 -- carry the asset for the second. The set of blocks of epochs up to @E@ is
 -- final only once the index holds a block of a later epoch, that is when
--- @E@ is below the tip's epoch. For @E@ equal to the tip's epoch the
--- answer would be the index's partial view of that epoch, which another
--- indexer at another tip answers differently, so it is refused like a
--- bound beyond the tip. (Rollbacks can still change a complete epoch's
--- answer, as they can every answer about the volatile part of the chain.)
--- The node asks these for the data epoch, two epochs before the one in
--- use, which is complete in normal operation.
-completeEpoch :: Q.BlockInfo -> Word32 -> IO ()
-completeEpoch Q.BlockInfo {biEpoch} e =
+-- @E@ is below the tip's epoch; such an epoch is always answered. (Rollbacks
+-- can still change a complete epoch's answer, as they can every answer
+-- about the volatile part of the chain.)
+--
+-- For @E@ at or beyond the tip's epoch db-sync answers from the blocks it
+-- holds, the latest matching row up to its tip, and the node relies on
+-- that (an RPC may ask for an epoch far in the future). The index answers
+-- the same when it is caught up ('caughtUp'): its blocks are then those
+-- of a synced db-sync. While it is behind, the answer would be a stale
+-- view of the tip's epoch, so it is refused like a bound beyond the tip.
+-- The node's committee selection asks for the data epoch, two epochs
+-- before the one in use, which is complete in normal operation.
+answerableEpoch :: Env -> Q.BlockInfo -> Word32 -> IO ()
+answerableEpoch env tip@Q.BlockInfo {biEpoch} e =
   when (e >= biEpoch) $
-    unavailable
-      ( "epoch " <> showText e <> " is not complete in the index, which ends in epoch " <> showText biEpoch
-          <> "; only epochs before " <> showText biEpoch <> " can be answered"
-      )
+    caughtUp env tip >>= \case
+      Nothing -> pure ()
+      Just why ->
+        unavailable
+          ( "epoch " <> showText e <> " is not complete in the index, which ends in epoch " <> showText biEpoch
+              <> ", and the index is not caught up with its upstream (" <> why <> "); only epochs before "
+              <> showText biEpoch <> " can be answered until it is"
+          )
+
+-- | Whether the index is caught up with its upstream at the given tip:
+-- 'Nothing' if it is, otherwise why not.
+--
+-- Caught up means that this process follows the chain itself and that
+-- @GetStatus@ would report @syncing = false@ for this tip (see
+-- 'syncingReasons'). A server that does not follow the chain (@--no-sync@)
+-- cannot tell how far behind the database is, so it is never caught up
+-- here, although @GetStatus@ reports @syncing = false@ for it.
+caughtUp :: Env -> Q.BlockInfo -> IO (Maybe Text)
+caughtUp Env {envConfig = ServerConfig {svSyncStatus, svEpochData}} tip = do
+  status@SyncStatus {ssFollowing} <- svSyncStatus
+  health <- edcHealth svEpochData
+  pure $ case syncingReasons status health (Just tip) of
+    _ | not ssFollowing -> Just "this server does not follow the chain itself"
+    [] -> Nothing
+    reasons -> Just (Text.intercalate "; " reasons)
+
+-- | Why @GetStatus@ reports @syncing@, given the indexed tip: empty when it
+-- reports @syncing = false@.
+--
+-- * Behind the upstream: the process follows the chain and either no
+--   upstream tip has been reported by chain-sync yet, nothing is indexed,
+--   or the indexed tip's block number is below the upstream tip's. (The
+--   sync loop reports the upstream tip after storing the block that came
+--   with it, so a tip at the upstream's block number holds every block the
+--   upstream had announced.)
+-- * Stake distributions in the backfill window still being obtained.
+syncingReasons :: SyncStatus -> EpochHealth -> Maybe Q.BlockInfo -> [Text]
+syncingReasons SyncStatus {ssFollowing, ssUpstreamTip} EpochHealth {ehMissingStake} tip =
+  behind <> map (\(EpochNo e) -> "the stake distribution of epoch " <> showText e <> " is being obtained") ehMissingStake
+ where
+  behind
+    | not ssFollowing = []
+    | otherwise = case (ssUpstreamTip, tip) of
+        (Nothing, _) -> ["no upstream tip has been reported yet"]
+        (_, Nothing) -> ["no block is indexed yet"]
+        (Just up, Just Q.BlockInfo {biNumber})
+          | fromIntegral biNumber < utBlockNo up ->
+              ["the index ends at block " <> showText biNumber <> ", the upstream tip is block " <> showText (utBlockNo up)]
+          | otherwise -> []
 
 {-------------------------------------------------------------------------------
   Request validation
@@ -333,13 +384,12 @@ getStatus :: Env -> P.GetStatusRequest -> IO P.GetStatusResponse
 getStatus env@Env {envConfig = ServerConfig {..}} _ = do
   let k = siSecurityParam svIdentity
   Q.IndexStatus {..} <- reading env (Q.getIndexStatus (fromIntegral k))
-  SyncStatus {..} <- svSyncStatus
-  EpochHealth {ehMissingStake} <- edcHealth svEpochData
-  let behind = ssFollowing && maybe True (\up -> maybe True ((< utBlockNo up) . fromIntegral . Q.biNumber) isTip) ssUpstreamTip
-      -- Stake distributions being fetched are backfills in the proto's
+  status@SyncStatus {..} <- svSyncStatus
+  health@EpochHealth {ehMissingStake} <- edcHealth svEpochData
+  let -- Stake distributions being fetched are backfills in the proto's
       -- sense: GetStakeDistribution for them answers UNAVAILABLE.
       stakeBackfills = ["stake-distribution:epoch:" <> showText e | EpochNo e <- ehMissingStake]
-      syncing = behind || not (null stakeBackfills)
+      syncing = not (null (syncingReasons status health isTip))
   pure $
     defMessage
       & #maybe'tip .~ fmap block isTip
@@ -423,7 +473,7 @@ getBridgeTxs env req send = do
 getLatestBlockForEpoch :: Env -> P.GetLatestBlockForEpochRequest -> IO P.OptionalBlock
 getLatestBlockForEpoch env req =
   answering env $ \tip snap -> do
-    completeEpoch tip (req ^. #epochNo)
+    answerableEpoch env tip (req ^. #epochNo)
     optionalBlock <$> Q.getLatestBlockForEpoch (req ^. #epochNo) snap
 
 getLatestStableEpoch :: Env -> P.GetLatestStableEpochRequest -> IO P.GetLatestStableEpochResponse
@@ -446,7 +496,7 @@ getLatestTokenOutputForEpoch env req = do
   asset <- assetId "asset" (req ^. #maybe'asset)
   watchedPolicy env (Q.assetPolicy asset)
   answering env $ \tip snap -> do
-    completeEpoch tip (req ^. #epochNo)
+    answerableEpoch env tip (req ^. #epochNo)
     out <- Q.getLatestTokenOutputForEpoch asset (req ^. #epochNo) snap
     pure (defMessage & #maybe'output .~ fmap tokenOutput out)
  where

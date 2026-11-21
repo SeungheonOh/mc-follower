@@ -59,9 +59,10 @@
 //     network or watch set); no block is indexed yet; a block number bound
 //     above the indexed tip; an epoch bound of GetLatestBlockForEpoch or
 //     GetLatestTokenOutputForEpoch that is not complete in the index (not
-//     below the tip's epoch); or epoch data the indexer does not know (yet):
-//     an epoch nonce, a stake distribution, or a max_tx_size gated by an
-//     unacknowledged proposal (see those RPCs). The node treats this like a
+//     below the tip's epoch) while the indexer is not caught up with its
+//     upstream (see those RPCs); or epoch data the indexer does not know
+//     (yet): an epoch nonce, a stake distribution, or a max_tx_size gated by
+//     an unacknowledged proposal (see those RPCs). The node treats this like a
 //     failed Postgres connection (an error from the data source).
 //   * FAILED_PRECONDITION: the request names an address or policy the
 //     indexer is not configured to index. Must never be answered with an empty
@@ -221,8 +222,12 @@ service McFollower {
   // Ordering: slot_no DESC (total among non-EBB blocks: one block per slot).
   // Limit: 1. Bounds: epoch_no <= epoch (inclusive). The block's epoch is the
   // epoch of its slot (CONTRACT.md section 3, item S8).
-  // UNAVAILABLE unless `epoch` is complete in the index (below the tip's
-  // epoch): any further block of the tip's epoch would be the answer.
+  // An `epoch` below the tip's epoch is complete in the index and always
+  // answered. For the tip's epoch or any later one db-sync returns the
+  // latest block up to its tip; the server answers the same (the indexed
+  // tip) when it is caught up with its upstream: it follows the chain
+  // itself and GetStatus would report syncing = false. Otherwise
+  // UNAVAILABLE: any further block of the tip's epoch would be the answer.
   // Fidelity: SPEC 4.ebb. Rust reads only block_no
   // (candidates_data_source/mod.rs); the full Block is returned.
   // Caller: CandidatesDataSourceImpl::get_last_block_for_epoch
@@ -290,8 +295,12 @@ service McFollower {
   // Ordering: (block_no DESC, tx_index DESC). NOT total: two outputs of the
   // same transaction both carrying the asset tie. The server breaks the tie
   // by output index DESC (CONTRACT.md section 5, item R1).
-  // UNAVAILABLE unless `epoch` is complete in the index (below the tip's
-  // epoch): any further block of the tip's epoch can change the answer.
+  // An `epoch` below the tip's epoch is complete in the index and always
+  // answered. For the tip's epoch or any later one db-sync answers from the
+  // blocks up to its tip; the server answers the same when it is caught up
+  // with its upstream: it follows the chain itself and GetStatus would
+  // report syncing = false. Otherwise UNAVAILABLE: any further block of the
+  // tip's epoch can change the answer.
   // Limit: 1.
   // Datum: LEFT JOIN, then decoded with the strict DbDatum decoder
   // (TokenTxOutput.datum: Option<DbDatum>): absent -> None (Rust then returns
