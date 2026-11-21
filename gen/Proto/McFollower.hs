@@ -10055,8 +10055,8 @@ packedFileDescriptor
     \\SIGetAssetCreates\DC2%.mcfollower.v1.GetAssetCreatesRequest\SUB\GS.mcfollower.v1.AssetCreateRow0\SOH\DC2V\n\
     \\SOGetAssetSpends\DC2$.mcfollower.v1.GetAssetSpendsRequest\SUB\FS.mcfollower.v1.AssetSpendRow0\SOH\DC2W\n\
     \\fGetMaxTxSize\DC2\".mcfollower.v1.GetMaxTxSizeRequest\SUB#.mcfollower.v1.GetMaxTxSizeResponse\DC2~\n\
-    \\EMGetLatestGovernanceOutput\DC2/.mcfollower.v1.GetLatestGovernanceOutputRequest\SUB0.mcfollower.v1.GetLatestGovernanceOutputResponseJ\227\224\STX\n\
-    \\a\DC2\ENQO\NUL\224\ACK\SOH\n\
+    \\EMGetLatestGovernanceOutput\DC2/.mcfollower.v1.GetLatestGovernanceOutputRequest\SUB0.mcfollower.v1.GetLatestGovernanceOutputResponseJ\152\227\STX\n\
+    \\a\DC2\ENQO\NUL\228\ACK\SOH\n\
     \\217$\n\
     \\SOH\f\DC2\ETXO\NUL\DC22\206$ Copyright (c) 2026, Seungheon Oh\n\
     \ SPDX-License-Identifier: BSD-3-Clause\n\
@@ -10916,7 +10916,7 @@ packedFileDescriptor
     \\v\n\
     \\ETX\EOT\b\SOH\DC2\EOT\185\EOT\b\CAN\n\
     \\f\n\
-    \\STX\EOT\t\DC2\ACK\187\EOT\NUL\212\EOT\SOH\n\
+    \\STX\EOT\t\DC2\ACK\187\EOT\NUL\216\EOT\SOH\n\
     \\v\n\
     \\ETX\EOT\t\SOH\DC2\EOT\187\EOT\b\EM\n\
     \U\n\
@@ -10954,1290 +10954,1294 @@ packedFileDescriptor
     \\ENQ\EOT\t\STX\STX\SOH\DC2\EOT\195\EOT\t\ESC\n\
     \\r\n\
     \\ENQ\EOT\t\STX\STX\ETX\DC2\EOT\195\EOT\RS\US\n\
-    \\197\SOH\n\
-    \\EOT\EOT\t\STX\ETX\DC2\EOT\199\EOT\STX\DC3\SUB\182\SOH True while the indexer is behind its upstream (initial sync, catch-up\n\
-    \ after reconnect), or while any backfill is in progress. Always false\n\
-    \ for a server that does not sync itself.\n\
+    \\250\ETX\n\
+    \\EOT\EOT\t\STX\ETX\DC2\EOT\203\EOT\STX\DC3\SUB\235\ETX True while the indexer is behind its upstream (initial sync, catch-up\n\
+    \ after reconnect), or while any backfill is in progress. Behind means no\n\
+    \ upstream tip reported yet, nothing indexed, or the tip more than 5\n\
+    \ blocks below the upstream tip: node-to-node chain-sync announces the\n\
+    \ tip before the block bodies arrive, so a following indexer is routinely\n\
+    \ a few blocks behind it. Always false for a server that does not sync\n\
+    \ itself. The raw lag is upstream_tip_block_no minus tip.block_no.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ETX\ENQ\DC2\EOT\199\EOT\STX\ACK\n\
+    \\ENQ\EOT\t\STX\ETX\ENQ\DC2\EOT\203\EOT\STX\ACK\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ETX\SOH\DC2\EOT\199\EOT\a\SO\n\
+    \\ENQ\EOT\t\STX\ETX\SOH\DC2\EOT\203\EOT\a\SO\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ETX\ETX\DC2\EOT\199\EOT\DC1\DC2\n\
+    \\ENQ\EOT\t\STX\ETX\ETX\DC2\EOT\203\EOT\DC1\DC2\n\
     \\150\SOH\n\
-    \\EOT\EOT\t\STX\EOT\DC2\EOT\202\EOT\STX(\SUB\135\SOH Upstream tip as last reported by chain-sync (slot and block number), for\n\
+    \\EOT\EOT\t\STX\EOT\DC2\EOT\206\EOT\STX(\SUB\135\SOH Upstream tip as last reported by chain-sync (slot and block number), for\n\
     \ lag reporting. Absent before the first chain-sync exchange.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\EOT\EOT\DC2\EOT\202\EOT\STX\n\
+    \\ENQ\EOT\t\STX\EOT\EOT\DC2\EOT\206\EOT\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\EOT\ENQ\DC2\EOT\202\EOT\v\DC1\n\
+    \\ENQ\EOT\t\STX\EOT\ENQ\DC2\EOT\206\EOT\v\DC1\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\EOT\SOH\DC2\EOT\202\EOT\DC2#\n\
+    \\ENQ\EOT\t\STX\EOT\SOH\DC2\EOT\206\EOT\DC2#\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\EOT\ETX\DC2\EOT\202\EOT&'\n\
+    \\ENQ\EOT\t\STX\EOT\ETX\DC2\EOT\206\EOT&'\n\
     \\f\n\
-    \\EOT\EOT\t\STX\ENQ\DC2\EOT\203\EOT\STX,\n\
+    \\EOT\EOT\t\STX\ENQ\DC2\EOT\207\EOT\STX,\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ENQ\EOT\DC2\EOT\203\EOT\STX\n\
+    \\ENQ\EOT\t\STX\ENQ\EOT\DC2\EOT\207\EOT\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ENQ\ENQ\DC2\EOT\203\EOT\v\DC1\n\
+    \\ENQ\EOT\t\STX\ENQ\ENQ\DC2\EOT\207\EOT\v\DC1\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ENQ\SOH\DC2\EOT\203\EOT\DC2'\n\
+    \\ENQ\EOT\t\STX\ENQ\SOH\DC2\EOT\207\EOT\DC2'\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ENQ\ETX\DC2\EOT\203\EOT*+\n\
+    \\ENQ\EOT\t\STX\ENQ\ETX\DC2\EOT\207\EOT*+\n\
     \R\n\
-    \\EOT\EOT\t\STX\ACK\DC2\EOT\205\EOT\STX!\SUBD First block the index covers (configured per-network start point).\n\
+    \\EOT\EOT\t\STX\ACK\DC2\EOT\209\EOT\STX!\SUBD First block the index covers (configured per-network start point).\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ACK\EOT\DC2\EOT\205\EOT\STX\n\
+    \\ENQ\EOT\t\STX\ACK\EOT\DC2\EOT\209\EOT\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ACK\ACK\DC2\EOT\205\EOT\v\DLE\n\
+    \\ENQ\EOT\t\STX\ACK\ACK\DC2\EOT\209\EOT\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ACK\SOH\DC2\EOT\205\EOT\DC1\FS\n\
+    \\ENQ\EOT\t\STX\ACK\SOH\DC2\EOT\209\EOT\DC1\FS\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\ACK\ETX\DC2\EOT\205\EOT\US \n\
+    \\ENQ\EOT\t\STX\ACK\ETX\DC2\EOT\209\EOT\US \n\
     \\207\SOH\n\
-    \\EOT\EOT\t\STX\a\DC2\EOT\209\EOT\STX\"\SUB\192\SOH Backfills in progress, as human-readable identifiers. Today only stake\n\
+    \\EOT\EOT\t\STX\a\DC2\EOT\213\EOT\STX\"\SUB\192\SOH Backfills in progress, as human-readable identifiers. Today only stake\n\
     \ distributions the indexer expects to obtain:\n\
     \ \"stake-distribution:epoch:N\". Requests for one of these get UNAVAILABLE.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\a\EOT\DC2\EOT\209\EOT\STX\n\
+    \\ENQ\EOT\t\STX\a\EOT\DC2\EOT\213\EOT\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\a\ENQ\DC2\EOT\209\EOT\v\DC1\n\
+    \\ENQ\EOT\t\STX\a\ENQ\DC2\EOT\213\EOT\v\DC1\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\a\SOH\DC2\EOT\209\EOT\DC2\GS\n\
+    \\ENQ\EOT\t\STX\a\SOH\DC2\EOT\213\EOT\DC2\GS\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\a\ETX\DC2\EOT\209\EOT !\n\
+    \\ENQ\EOT\t\STX\a\ETX\DC2\EOT\213\EOT !\n\
     \:\n\
-    \\EOT\EOT\t\STX\b\DC2\EOT\211\EOT\STX\ESC\SUB, Cardano network magic the indexer follows.\n\
+    \\EOT\EOT\t\STX\b\DC2\EOT\215\EOT\STX\ESC\SUB, Cardano network magic the indexer follows.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\b\ENQ\DC2\EOT\211\EOT\STX\b\n\
+    \\ENQ\EOT\t\STX\b\ENQ\DC2\EOT\215\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\b\SOH\DC2\EOT\211\EOT\t\SYN\n\
+    \\ENQ\EOT\t\STX\b\SOH\DC2\EOT\215\EOT\t\SYN\n\
     \\r\n\
-    \\ENQ\EOT\t\STX\b\ETX\DC2\EOT\211\EOT\EM\SUB\n\
+    \\ENQ\EOT\t\STX\b\ETX\DC2\EOT\215\EOT\EM\SUB\n\
     \\182\SOH\n\
     \\STX\EOT\n\
-    \\DC2\EOT\218\EOT\NUL 2\169\SOH =========================================================================\n\
+    \\DC2\EOT\222\EOT\NUL 2\169\SOH =========================================================================\n\
     \ Block data source\n\
     \ =========================================================================\n\
     \\n\
     \\v\n\
     \\ETX\EOT\n\
-    \\SOH\DC2\EOT\218\EOT\b\GS\n\
+    \\SOH\DC2\EOT\222\EOT\b\GS\n\
     \\f\n\
-    \\STX\EOT\v\DC2\ACK\220\EOT\NUL\223\EOT\SOH\n\
+    \\STX\EOT\v\DC2\ACK\224\EOT\NUL\227\EOT\SOH\n\
     \\v\n\
-    \\ETX\EOT\v\SOH\DC2\EOT\220\EOT\b%\n\
+    \\ETX\EOT\v\SOH\DC2\EOT\224\EOT\b%\n\
     \\EM\n\
-    \\EOT\EOT\v\STX\NUL\DC2\EOT\221\EOT\STX\ESC\"\v inclusive\n\
+    \\EOT\EOT\v\STX\NUL\DC2\EOT\225\EOT\STX\ESC\"\v inclusive\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\NUL\ENQ\DC2\EOT\221\EOT\STX\b\n\
+    \\ENQ\EOT\v\STX\NUL\ENQ\DC2\EOT\225\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\NUL\SOH\DC2\EOT\221\EOT\t\SYN\n\
+    \\ENQ\EOT\v\STX\NUL\SOH\DC2\EOT\225\EOT\t\SYN\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\NUL\ETX\DC2\EOT\221\EOT\EM\SUB\n\
+    \\ENQ\EOT\v\STX\NUL\ETX\DC2\EOT\225\EOT\EM\SUB\n\
     \\EM\n\
-    \\EOT\EOT\v\STX\SOH\DC2\EOT\222\EOT\STX\EM\"\v inclusive\n\
+    \\EOT\EOT\v\STX\SOH\DC2\EOT\226\EOT\STX\EM\"\v inclusive\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\SOH\ENQ\DC2\EOT\222\EOT\STX\b\n\
+    \\ENQ\EOT\v\STX\SOH\ENQ\DC2\EOT\226\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\SOH\SOH\DC2\EOT\222\EOT\t\DC4\n\
+    \\ENQ\EOT\v\STX\SOH\SOH\DC2\EOT\226\EOT\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\v\STX\SOH\ETX\DC2\EOT\222\EOT\ETB\CAN\n\
+    \\ENQ\EOT\v\STX\SOH\ETX\DC2\EOT\226\EOT\ETB\CAN\n\
     \\f\n\
-    \\STX\EOT\f\DC2\ACK\225\EOT\NUL\231\EOT\SOH\n\
+    \\STX\EOT\f\DC2\ACK\229\EOT\NUL\235\EOT\SOH\n\
     \\v\n\
-    \\ETX\EOT\f\SOH\DC2\EOT\225\EOT\b&\n\
+    \\ETX\EOT\f\SOH\DC2\EOT\229\EOT\b&\n\
     \(\n\
-    \\EOT\EOT\f\STX\NUL\DC2\EOT\226\EOT\STX\SUB\"\SUB block_no <= max_block_no\n\
+    \\EOT\EOT\f\STX\NUL\DC2\EOT\230\EOT\STX\SUB\"\SUB block_no <= max_block_no\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\NUL\ENQ\DC2\EOT\226\EOT\STX\b\n\
+    \\ENQ\EOT\f\STX\NUL\ENQ\DC2\EOT\230\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\NUL\SOH\DC2\EOT\226\EOT\t\NAK\n\
+    \\ENQ\EOT\f\STX\NUL\SOH\DC2\EOT\230\EOT\t\NAK\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\NUL\ETX\DC2\EOT\226\EOT\CAN\EM\n\
+    \\ENQ\EOT\f\STX\NUL\ETX\DC2\EOT\230\EOT\CAN\EM\n\
     \#\n\
-    \\EOT\EOT\f\STX\SOH\DC2\EOT\227\EOT\STX\SYN\"\NAK min_slot <= slot_no\n\
+    \\EOT\EOT\f\STX\SOH\DC2\EOT\231\EOT\STX\SYN\"\NAK min_slot <= slot_no\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\SOH\ENQ\DC2\EOT\227\EOT\STX\b\n\
+    \\ENQ\EOT\f\STX\SOH\ENQ\DC2\EOT\231\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\SOH\SOH\DC2\EOT\227\EOT\t\DC1\n\
+    \\ENQ\EOT\f\STX\SOH\SOH\DC2\EOT\231\EOT\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\SOH\ETX\DC2\EOT\227\EOT\DC4\NAK\n\
+    \\ENQ\EOT\f\STX\SOH\ETX\DC2\EOT\231\EOT\DC4\NAK\n\
     \#\n\
-    \\EOT\EOT\f\STX\STX\DC2\EOT\228\EOT\STX\SYN\"\NAK slot_no <= max_slot\n\
+    \\EOT\EOT\f\STX\STX\DC2\EOT\232\EOT\STX\SYN\"\NAK slot_no <= max_slot\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\STX\ENQ\DC2\EOT\228\EOT\STX\b\n\
+    \\ENQ\EOT\f\STX\STX\ENQ\DC2\EOT\232\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\STX\SOH\DC2\EOT\228\EOT\t\DC1\n\
+    \\ENQ\EOT\f\STX\STX\SOH\DC2\EOT\232\EOT\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\STX\ETX\DC2\EOT\228\EOT\DC4\NAK\n\
+    \\ENQ\EOT\f\STX\STX\ETX\DC2\EOT\232\EOT\DC4\NAK\n\
     \/\n\
-    \\EOT\EOT\f\STX\ETX\DC2\EOT\229\EOT\STX!\"! min_time <= time (ms precision)\n\
+    \\EOT\EOT\f\STX\ETX\DC2\EOT\233\EOT\STX!\"! min_time <= time (ms precision)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\ETX\ENQ\DC2\EOT\229\EOT\STX\a\n\
+    \\ENQ\EOT\f\STX\ETX\ENQ\DC2\EOT\233\EOT\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\ETX\SOH\DC2\EOT\229\EOT\b\FS\n\
+    \\ENQ\EOT\f\STX\ETX\SOH\DC2\EOT\233\EOT\b\FS\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\ETX\ETX\DC2\EOT\229\EOT\US \n\
+    \\ENQ\EOT\f\STX\ETX\ETX\DC2\EOT\233\EOT\US \n\
     \/\n\
-    \\EOT\EOT\f\STX\EOT\DC2\EOT\230\EOT\STX!\"! time <= max_time (ms precision)\n\
+    \\EOT\EOT\f\STX\EOT\DC2\EOT\234\EOT\STX!\"! time <= max_time (ms precision)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\EOT\ENQ\DC2\EOT\230\EOT\STX\a\n\
+    \\ENQ\EOT\f\STX\EOT\ENQ\DC2\EOT\234\EOT\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\EOT\SOH\DC2\EOT\230\EOT\b\FS\n\
+    \\ENQ\EOT\f\STX\EOT\SOH\DC2\EOT\234\EOT\b\FS\n\
     \\r\n\
-    \\ENQ\EOT\f\STX\EOT\ETX\DC2\EOT\230\EOT\US \n\
+    \\ENQ\EOT\f\STX\EOT\ETX\DC2\EOT\234\EOT\US \n\
     \\f\n\
-    \\STX\EOT\r\DC2\ACK\233\EOT\NUL\235\EOT\SOH\n\
+    \\STX\EOT\r\DC2\ACK\237\EOT\NUL\239\EOT\SOH\n\
     \\v\n\
-    \\ETX\EOT\r\SOH\DC2\EOT\233\EOT\b\GS\n\
+    \\ETX\EOT\r\SOH\DC2\EOT\237\EOT\b\GS\n\
     \\CAN\n\
-    \\EOT\EOT\r\STX\NUL\DC2\EOT\234\EOT\STX\DC1\"\n\
+    \\EOT\EOT\r\STX\NUL\DC2\EOT\238\EOT\STX\DC1\"\n\
     \ 32 bytes\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\r\STX\NUL\ENQ\DC2\EOT\234\EOT\STX\a\n\
+    \\ENQ\EOT\r\STX\NUL\ENQ\DC2\EOT\238\EOT\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\r\STX\NUL\SOH\DC2\EOT\234\EOT\b\f\n\
+    \\ENQ\EOT\r\STX\NUL\SOH\DC2\EOT\238\EOT\b\f\n\
     \\r\n\
-    \\ENQ\EOT\r\STX\NUL\ETX\DC2\EOT\234\EOT\SI\DLE\n\
+    \\ENQ\EOT\r\STX\NUL\ETX\DC2\EOT\238\EOT\SI\DLE\n\
     \\179\SOH\n\
-    \\STX\EOT\SO\DC2\ACK\241\EOT\NUL\243\EOT\SOH2\164\SOH =========================================================================\n\
+    \\STX\EOT\SO\DC2\ACK\245\EOT\NUL\247\EOT\SOH2\164\SOH =========================================================================\n\
     \ Token bridge\n\
     \ =========================================================================\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\SO\SOH\DC2\EOT\241\EOT\b\FS\n\
+    \\ETX\EOT\SO\SOH\DC2\EOT\245\EOT\b\FS\n\
     \\CAN\n\
-    \\EOT\EOT\SO\STX\NUL\DC2\EOT\242\EOT\STX\DC4\"\n\
+    \\EOT\EOT\SO\STX\NUL\DC2\EOT\246\EOT\STX\DC4\"\n\
     \ 32 bytes\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\SO\STX\NUL\ENQ\DC2\EOT\242\EOT\STX\a\n\
+    \\ENQ\EOT\SO\STX\NUL\ENQ\DC2\EOT\246\EOT\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\SO\STX\NUL\SOH\DC2\EOT\242\EOT\b\SI\n\
+    \\ENQ\EOT\SO\STX\NUL\SOH\DC2\EOT\246\EOT\b\SI\n\
     \\r\n\
-    \\ENQ\EOT\SO\STX\NUL\ETX\DC2\EOT\242\EOT\DC2\DC3\n\
+    \\ENQ\EOT\SO\STX\NUL\ETX\DC2\EOT\246\EOT\DC2\DC3\n\
     \5\n\
-    \\STX\EOT\SI\DC2\ACK\246\EOT\NUL\248\EOT\SOH\SUB' Mirrors TxBlockInfo (PC/db_model.rs).\n\
+    \\STX\EOT\SI\DC2\ACK\250\EOT\NUL\252\EOT\SOH\SUB' Mirrors TxBlockInfo (PC/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\SI\SOH\DC2\EOT\246\EOT\b\GS\n\
+    \\ETX\EOT\SI\SOH\DC2\EOT\250\EOT\b\GS\n\
     \\f\n\
-    \\EOT\EOT\SI\STX\NUL\DC2\EOT\247\EOT\STX!\n\
+    \\EOT\EOT\SI\STX\NUL\DC2\EOT\251\EOT\STX!\n\
     \\r\n\
-    \\ENQ\EOT\SI\STX\NUL\EOT\DC2\EOT\247\EOT\STX\n\
+    \\ENQ\EOT\SI\STX\NUL\EOT\DC2\EOT\251\EOT\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\SI\STX\NUL\ACK\DC2\EOT\247\EOT\v\DC3\n\
+    \\ENQ\EOT\SI\STX\NUL\ACK\DC2\EOT\251\EOT\v\DC3\n\
     \\r\n\
-    \\ENQ\EOT\SI\STX\NUL\SOH\DC2\EOT\247\EOT\DC4\FS\n\
+    \\ENQ\EOT\SI\STX\NUL\SOH\DC2\EOT\251\EOT\DC4\FS\n\
     \\r\n\
-    \\ENQ\EOT\SI\STX\NUL\ETX\DC2\EOT\247\EOT\US \n\
+    \\ENQ\EOT\SI\STX\NUL\ETX\DC2\EOT\251\EOT\US \n\
     \\f\n\
-    \\STX\EOT\DLE\DC2\ACK\250\EOT\NUL\138\ENQ\SOH\n\
+    \\STX\EOT\DLE\DC2\ACK\254\EOT\NUL\142\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\DLE\SOH\DC2\EOT\250\EOT\b\ESC\n\
+    \\ETX\EOT\DLE\SOH\DC2\EOT\254\EOT\b\ESC\n\
     \=\n\
-    \\EOT\EOT\DLE\STX\NUL\DC2\EOT\251\EOT\STX\EM\"/ illiquid circulation supply validator address\n\
+    \\EOT\EOT\DLE\STX\NUL\DC2\EOT\255\EOT\STX\EM\"/ illiquid circulation supply validator address\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\NUL\ENQ\DC2\EOT\251\EOT\STX\b\n\
+    \\ENQ\EOT\DLE\STX\NUL\ENQ\DC2\EOT\255\EOT\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\NUL\SOH\DC2\EOT\251\EOT\t\DC4\n\
+    \\ENQ\EOT\DLE\STX\NUL\SOH\DC2\EOT\255\EOT\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\NUL\ETX\DC2\EOT\251\EOT\ETB\CAN\n\
+    \\ENQ\EOT\DLE\STX\NUL\ETX\DC2\EOT\255\EOT\ETB\CAN\n\
     \)\n\
-    \\EOT\EOT\DLE\STX\SOH\DC2\EOT\252\EOT\STX\GS\"\ESC reserve validator address\n\
+    \\EOT\EOT\DLE\STX\SOH\DC2\EOT\128\ENQ\STX\GS\"\ESC reserve validator address\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\SOH\ENQ\DC2\EOT\252\EOT\STX\b\n\
+    \\ENQ\EOT\DLE\STX\SOH\ENQ\DC2\EOT\128\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\SOH\SOH\DC2\EOT\252\EOT\t\CAN\n\
+    \\ENQ\EOT\DLE\STX\SOH\SOH\DC2\EOT\128\ENQ\t\CAN\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\SOH\ETX\DC2\EOT\252\EOT\ESC\FS\n\
+    \\ENQ\EOT\DLE\STX\SOH\ETX\DC2\EOT\128\ENQ\ESC\FS\n\
     \+\n\
-    \\EOT\EOT\DLE\STX\STX\DC2\EOT\253\EOT\STX\DC4\"\GS bridge token (policy, name)\n\
+    \\EOT\EOT\DLE\STX\STX\DC2\EOT\129\ENQ\STX\DC4\"\GS bridge token (policy, name)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\STX\ACK\DC2\EOT\253\EOT\STX\t\n\
+    \\ENQ\EOT\DLE\STX\STX\ACK\DC2\EOT\129\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\STX\SOH\DC2\EOT\253\EOT\n\
+    \\ENQ\EOT\DLE\STX\STX\SOH\DC2\EOT\129\ENQ\n\
     \\SI\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\STX\ETX\DC2\EOT\253\EOT\DC2\DC3\n\
+    \\ENQ\EOT\DLE\STX\STX\ETX\DC2\EOT\129\ENQ\DC2\DC3\n\
     \X\n\
-    \\EOT\EOT\DLE\b\NUL\DC2\ACK\128\ENQ\STX\135\ENQ\ETX\SUBH Lower bound, mirroring ResolvedBridgeDataCheckpoint\n\
+    \\EOT\EOT\DLE\b\NUL\DC2\ACK\132\ENQ\STX\139\ENQ\ETX\SUBH Lower bound, mirroring ResolvedBridgeDataCheckpoint\n\
     \ (PC/db_model.rs).\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\b\NUL\SOH\DC2\EOT\128\ENQ\b\r\n\
+    \\ENQ\EOT\DLE\b\NUL\SOH\DC2\EOT\132\ENQ\b\r\n\
     \9\n\
-    \\EOT\EOT\DLE\STX\ETX\DC2\EOT\130\ENQ\EOT\RS\SUB+ Block{number}: block_no > after_block_no.\n\
+    \\EOT\EOT\DLE\STX\ETX\DC2\EOT\134\ENQ\EOT\RS\SUB+ Block{number}: block_no > after_block_no.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ETX\ENQ\DC2\EOT\130\ENQ\EOT\n\
+    \\ENQ\EOT\DLE\STX\ETX\ENQ\DC2\EOT\134\ENQ\EOT\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ETX\SOH\DC2\EOT\130\ENQ\v\EM\n\
+    \\ENQ\EOT\DLE\STX\ETX\SOH\DC2\EOT\134\ENQ\v\EM\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ETX\ETX\DC2\EOT\130\ENQ\FS\GS\n\
+    \\ENQ\EOT\DLE\STX\ETX\ETX\DC2\EOT\134\ENQ\FS\GS\n\
     \O\n\
-    \\EOT\EOT\DLE\STX\EOT\DC2\EOT\132\ENQ\EOT \SUBA Tx{block_number, tx_ix}: (block_no, tx_index) > after_position.\n\
+    \\EOT\EOT\DLE\STX\EOT\DC2\EOT\136\ENQ\EOT \SUBA Tx{block_number, tx_ix}: (block_no, tx_index) > after_position.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\EOT\ACK\DC2\EOT\132\ENQ\EOT\f\n\
+    \\ENQ\EOT\DLE\STX\EOT\ACK\DC2\EOT\136\ENQ\EOT\f\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\EOT\SOH\DC2\EOT\132\ENQ\r\ESC\n\
+    \\ENQ\EOT\DLE\STX\EOT\SOH\DC2\EOT\136\ENQ\r\ESC\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\EOT\ETX\DC2\EOT\132\ENQ\RS\US\n\
+    \\ENQ\EOT\DLE\STX\EOT\ETX\DC2\EOT\136\ENQ\RS\US\n\
     \^\n\
-    \\EOT\EOT\DLE\STX\ENQ\DC2\EOT\134\ENQ\EOT\US\SUBP TxReserveTransfer{block_number, tx_ix}: (block_no, tx_index) >= from_position.\n\
+    \\EOT\EOT\DLE\STX\ENQ\DC2\EOT\138\ENQ\EOT\US\SUBP TxReserveTransfer{block_number, tx_ix}: (block_no, tx_index) >= from_position.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ENQ\ACK\DC2\EOT\134\ENQ\EOT\f\n\
+    \\ENQ\EOT\DLE\STX\ENQ\ACK\DC2\EOT\138\ENQ\EOT\f\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ENQ\SOH\DC2\EOT\134\ENQ\r\SUB\n\
+    \\ENQ\EOT\DLE\STX\ENQ\SOH\DC2\EOT\138\ENQ\r\SUB\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ENQ\ETX\DC2\EOT\134\ENQ\GS\RS\n\
+    \\ENQ\EOT\DLE\STX\ENQ\ETX\DC2\EOT\138\ENQ\GS\RS\n\
     \3\n\
-    \\EOT\EOT\DLE\STX\ACK\DC2\EOT\136\ENQ\STX\EM\"% block_no <= to_block_no (inclusive)\n\
+    \\EOT\EOT\DLE\STX\ACK\DC2\EOT\140\ENQ\STX\EM\"% block_no <= to_block_no (inclusive)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ACK\ENQ\DC2\EOT\136\ENQ\STX\b\n\
+    \\ENQ\EOT\DLE\STX\ACK\ENQ\DC2\EOT\140\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ACK\SOH\DC2\EOT\136\ENQ\t\DC4\n\
+    \\ENQ\EOT\DLE\STX\ACK\SOH\DC2\EOT\140\ENQ\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\ACK\ETX\DC2\EOT\136\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\DLE\STX\ACK\ETX\DC2\EOT\140\ENQ\ETB\CAN\n\
     \'\n\
-    \\EOT\EOT\DLE\STX\a\DC2\EOT\137\ENQ\STX\RS\"\EM LIMIT; unset = no limit\n\
+    \\EOT\EOT\DLE\STX\a\DC2\EOT\141\ENQ\STX\RS\"\EM LIMIT; unset = no limit\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\a\EOT\DC2\EOT\137\ENQ\STX\n\
+    \\ENQ\EOT\DLE\STX\a\EOT\DC2\EOT\141\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\a\ENQ\DC2\EOT\137\ENQ\v\DC1\n\
+    \\ENQ\EOT\DLE\STX\a\ENQ\DC2\EOT\141\ENQ\v\DC1\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\a\SOH\DC2\EOT\137\ENQ\DC2\EM\n\
+    \\ENQ\EOT\DLE\STX\a\SOH\DC2\EOT\141\ENQ\DC2\EM\n\
     \\r\n\
-    \\ENQ\EOT\DLE\STX\a\ETX\DC2\EOT\137\ENQ\FS\GS\n\
+    \\ENQ\EOT\DLE\STX\a\ETX\DC2\EOT\141\ENQ\FS\GS\n\
     \2\n\
-    \\STX\EOT\DC1\DC2\ACK\141\ENQ\NUL\155\ENQ\SOH\SUB$ Mirrors BridgeTx (PC/db_model.rs).\n\
+    \\STX\EOT\DC1\DC2\ACK\145\ENQ\NUL\159\ENQ\SOH\SUB$ Mirrors BridgeTx (PC/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\DC1\SOH\DC2\EOT\141\ENQ\b\DC3\n\
+    \\ETX\EOT\DC1\SOH\DC2\EOT\145\ENQ\b\DC3\n\
     \)\n\
-    \\EOT\EOT\DC1\STX\NUL\DC2\EOT\142\ENQ\STX\SYN\"\ESC block_number: BlockNumber\n\
+    \\EOT\EOT\DC1\STX\NUL\DC2\EOT\146\ENQ\STX\SYN\"\ESC block_number: BlockNumber\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\NUL\ENQ\DC2\EOT\142\ENQ\STX\b\n\
+    \\ENQ\EOT\DC1\STX\NUL\ENQ\DC2\EOT\146\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\NUL\SOH\DC2\EOT\142\ENQ\t\DC1\n\
+    \\ENQ\EOT\DC1\STX\NUL\SOH\DC2\EOT\146\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\NUL\ETX\DC2\EOT\142\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\DC1\STX\NUL\ETX\DC2\EOT\146\ENQ\DC4\NAK\n\
     \%\n\
-    \\EOT\EOT\DC1\STX\SOH\DC2\EOT\143\ENQ\STX\SYN\"\ETB tx_ix: TxIndexInBlock\n\
+    \\EOT\EOT\DC1\STX\SOH\DC2\EOT\147\ENQ\STX\SYN\"\ETB tx_ix: TxIndexInBlock\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\SOH\ENQ\DC2\EOT\143\ENQ\STX\b\n\
+    \\ENQ\EOT\DC1\STX\SOH\ENQ\DC2\EOT\147\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\SOH\SOH\DC2\EOT\143\ENQ\t\DC1\n\
+    \\ENQ\EOT\DC1\STX\SOH\SOH\DC2\EOT\147\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\SOH\ETX\DC2\EOT\143\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\DC1\STX\SOH\ETX\DC2\EOT\147\ENQ\DC4\NAK\n\
     \\US\n\
-    \\EOT\EOT\DC1\STX\STX\DC2\EOT\144\ENQ\STX\DC4\"\DC1 tx_hash: TxHash\n\
+    \\EOT\EOT\DC1\STX\STX\DC2\EOT\148\ENQ\STX\DC4\"\DC1 tx_hash: TxHash\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\STX\ENQ\DC2\EOT\144\ENQ\STX\a\n\
+    \\ENQ\EOT\DC1\STX\STX\ENQ\DC2\EOT\148\ENQ\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\STX\SOH\DC2\EOT\144\ENQ\b\SI\n\
+    \\ENQ\EOT\DC1\STX\STX\SOH\DC2\EOT\148\ENQ\b\SI\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\STX\ETX\DC2\EOT\144\ENQ\DC2\DC3\n\
+    \\ENQ\EOT\DC1\STX\STX\ETX\DC2\EOT\148\ENQ\DC2\DC3\n\
     \\200\STX\n\
-    \\EOT\EOT\DC1\STX\ETX\DC2\EOT\150\ENQ\STX(\SUB\185\STX c2m_metadata: CBOR of the metadatum under label 6500973 in T's\n\
+    \\EOT\EOT\DC1\STX\ETX\DC2\EOT\154\ENQ\STX(\SUB\185\STX c2m_metadata: CBOR of the metadatum under label 6500973 in T's\n\
     \ auxiliary data (the value only, not the label map). Unset when T has no\n\
     \ such label (or T is phase-2-invalid, SPEC 4.meta). The Rust client maps\n\
     \ it to the Option<JsonValue> that metadata_to_recipient consumes; see\n\
     \ CONTRACT.md section 3, item S6.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ETX\EOT\DC2\EOT\150\ENQ\STX\n\
+    \\ENQ\EOT\DC1\STX\ETX\EOT\DC2\EOT\154\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ETX\ENQ\DC2\EOT\150\ENQ\v\DLE\n\
+    \\ENQ\EOT\DC1\STX\ETX\ENQ\DC2\EOT\154\ENQ\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ETX\SOH\DC2\EOT\150\ENQ\DC1#\n\
+    \\ENQ\EOT\DC1\STX\ETX\SOH\DC2\EOT\154\ENQ\DC1#\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ETX\ETX\DC2\EOT\150\ENQ&'\n\
+    \\ENQ\EOT\DC1\STX\ETX\ETX\DC2\EOT\154\ENQ&'\n\
     \\f\n\
-    \\EOT\EOT\DC1\STX\EOT\DC2\EOT\151\ENQ\STX\CAN\n\
+    \\EOT\EOT\DC1\STX\EOT\DC2\EOT\155\ENQ\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\EOT\ACK\DC2\EOT\151\ENQ\STX\t\n\
+    \\ENQ\EOT\DC1\STX\EOT\ACK\DC2\EOT\155\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\EOT\SOH\DC2\EOT\151\ENQ\n\
+    \\ENQ\EOT\DC1\STX\EOT\SOH\DC2\EOT\155\ENQ\n\
     \\DC3\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\EOT\ETX\DC2\EOT\151\ENQ\SYN\ETB\n\
+    \\ENQ\EOT\DC1\STX\EOT\ETX\DC2\EOT\155\ENQ\SYN\ETB\n\
     \\f\n\
-    \\EOT\EOT\DC1\STX\ENQ\DC2\EOT\152\ENQ\STX\EM\n\
+    \\EOT\EOT\DC1\STX\ENQ\DC2\EOT\156\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ENQ\ACK\DC2\EOT\152\ENQ\STX\t\n\
+    \\ENQ\EOT\DC1\STX\ENQ\ACK\DC2\EOT\156\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ENQ\SOH\DC2\EOT\152\ENQ\n\
+    \\ENQ\EOT\DC1\STX\ENQ\SOH\DC2\EOT\156\ENQ\n\
     \\DC4\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ENQ\ETX\DC2\EOT\152\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\DC1\STX\ENQ\ETX\DC2\EOT\156\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\DC1\STX\ACK\DC2\EOT\153\ENQ\STX\EM\n\
+    \\EOT\EOT\DC1\STX\ACK\DC2\EOT\157\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ACK\ACK\DC2\EOT\153\ENQ\STX\t\n\
+    \\ENQ\EOT\DC1\STX\ACK\ACK\DC2\EOT\157\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ACK\SOH\DC2\EOT\153\ENQ\n\
+    \\ENQ\EOT\DC1\STX\ACK\SOH\DC2\EOT\157\ENQ\n\
     \\DC4\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\ACK\ETX\DC2\EOT\153\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\DC1\STX\ACK\ETX\DC2\EOT\157\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\DC1\STX\a\DC2\EOT\154\ENQ\STX\SUB\n\
+    \\EOT\EOT\DC1\STX\a\DC2\EOT\158\ENQ\STX\SUB\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\a\ACK\DC2\EOT\154\ENQ\STX\t\n\
+    \\ENQ\EOT\DC1\STX\a\ACK\DC2\EOT\158\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\a\SOH\DC2\EOT\154\ENQ\n\
+    \\ENQ\EOT\DC1\STX\a\SOH\DC2\EOT\158\ENQ\n\
     \\NAK\n\
     \\r\n\
-    \\ENQ\EOT\DC1\STX\a\ETX\DC2\EOT\154\ENQ\CAN\EM\n\
+    \\ENQ\EOT\DC1\STX\a\ETX\DC2\EOT\158\ENQ\CAN\EM\n\
     \\186\SOH\n\
-    \\STX\EOT\DC2\DC2\ACK\161\ENQ\NUL\163\ENQ\SOH2\171\SOH =========================================================================\n\
+    \\STX\EOT\DC2\DC2\ACK\165\ENQ\NUL\167\ENQ\SOH2\171\SOH =========================================================================\n\
     \ Authority selection\n\
     \ =========================================================================\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\DC2\SOH\DC2\EOT\161\ENQ\b%\n\
+    \\ETX\EOT\DC2\SOH\DC2\EOT\165\ENQ\b%\n\
     \,\n\
-    \\EOT\EOT\DC2\STX\NUL\DC2\EOT\162\ENQ\STX\SYN\"\RS epoch_no <= this (inclusive)\n\
+    \\EOT\EOT\DC2\STX\NUL\DC2\EOT\166\ENQ\STX\SYN\"\RS epoch_no <= this (inclusive)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC2\STX\NUL\ENQ\DC2\EOT\162\ENQ\STX\b\n\
+    \\ENQ\EOT\DC2\STX\NUL\ENQ\DC2\EOT\166\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DC2\STX\NUL\SOH\DC2\EOT\162\ENQ\t\DC1\n\
+    \\ENQ\EOT\DC2\STX\NUL\SOH\DC2\EOT\166\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\DC2\STX\NUL\ETX\DC2\EOT\162\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\DC2\STX\NUL\ETX\DC2\EOT\166\ENQ\DC4\NAK\n\
     \\f\n\
-    \\STX\EOT\DC3\DC2\ACK\165\ENQ\NUL\167\ENQ\SOH\n\
+    \\STX\EOT\DC3\DC2\ACK\169\ENQ\NUL\171\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\DC3\SOH\DC2\EOT\165\ENQ\b#\n\
+    \\ETX\EOT\DC3\SOH\DC2\EOT\169\ENQ\b#\n\
     \\RS\n\
-    \\EOT\EOT\DC3\STX\NUL\DC2\EOT\166\ENQ\STX \"\DLE k, node config\n\
+    \\EOT\EOT\DC3\STX\NUL\DC2\EOT\170\ENQ\STX \"\DLE k, node config\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC3\STX\NUL\ENQ\DC2\EOT\166\ENQ\STX\b\n\
+    \\ENQ\EOT\DC3\STX\NUL\ENQ\DC2\EOT\170\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\DC3\STX\NUL\SOH\DC2\EOT\166\ENQ\t\ESC\n\
+    \\ENQ\EOT\DC3\STX\NUL\SOH\DC2\EOT\170\ENQ\t\ESC\n\
     \\r\n\
-    \\ENQ\EOT\DC3\STX\NUL\ETX\DC2\EOT\166\ENQ\RS\US\n\
+    \\ENQ\EOT\DC3\STX\NUL\ETX\DC2\EOT\170\ENQ\RS\US\n\
     \\f\n\
-    \\STX\EOT\DC4\DC2\ACK\169\ENQ\NUL\172\ENQ\SOH\n\
+    \\STX\EOT\DC4\DC2\ACK\173\ENQ\NUL\176\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\DC4\SOH\DC2\EOT\169\ENQ\b$\n\
+    \\ETX\EOT\DC4\SOH\DC2\EOT\173\ENQ\b$\n\
     \W\n\
-    \\EOT\EOT\DC4\STX\NUL\DC2\EOT\171\ENQ\STX\RS\SUBI stable_block.epoch_no - 1; may be -1. Absent when tip < k or no blocks.\n\
+    \\EOT\EOT\DC4\STX\NUL\DC2\EOT\175\ENQ\STX\RS\SUBI stable_block.epoch_no - 1; may be -1. Absent when tip < k or no blocks.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC4\STX\NUL\EOT\DC2\EOT\171\ENQ\STX\n\
+    \\ENQ\EOT\DC4\STX\NUL\EOT\DC2\EOT\175\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\DC4\STX\NUL\ENQ\DC2\EOT\171\ENQ\v\DLE\n\
+    \\ENQ\EOT\DC4\STX\NUL\ENQ\DC2\EOT\175\ENQ\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\DC4\STX\NUL\SOH\DC2\EOT\171\ENQ\DC1\EM\n\
+    \\ENQ\EOT\DC4\STX\NUL\SOH\DC2\EOT\175\ENQ\DC1\EM\n\
     \\r\n\
-    \\ENQ\EOT\DC4\STX\NUL\ETX\DC2\EOT\171\ENQ\FS\GS\n\
+    \\ENQ\EOT\DC4\STX\NUL\ETX\DC2\EOT\175\ENQ\FS\GS\n\
     \\f\n\
-    \\STX\EOT\NAK\DC2\ACK\174\ENQ\NUL\176\ENQ\SOH\n\
+    \\STX\EOT\NAK\DC2\ACK\178\ENQ\NUL\180\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\NAK\SOH\DC2\EOT\174\ENQ\b#\n\
+    \\ETX\EOT\NAK\SOH\DC2\EOT\178\ENQ\b#\n\
     \\f\n\
-    \\EOT\EOT\NAK\STX\NUL\DC2\EOT\175\ENQ\STX\SYN\n\
+    \\EOT\EOT\NAK\STX\NUL\DC2\EOT\179\ENQ\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT\NAK\STX\NUL\ENQ\DC2\EOT\175\ENQ\STX\b\n\
+    \\ENQ\EOT\NAK\STX\NUL\ENQ\DC2\EOT\179\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\NAK\STX\NUL\SOH\DC2\EOT\175\ENQ\t\DC1\n\
+    \\ENQ\EOT\NAK\STX\NUL\SOH\DC2\EOT\179\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\NAK\STX\NUL\ETX\DC2\EOT\175\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\NAK\STX\NUL\ETX\DC2\EOT\179\ENQ\DC4\NAK\n\
     \L\n\
-    \\STX\EOT\SYN\DC2\ACK\179\ENQ\NUL\182\ENQ\SOH\SUB> Mirrors StakePoolEntry (candidates_data_source/db_model.rs).\n\
+    \\STX\EOT\SYN\DC2\ACK\183\ENQ\NUL\186\ENQ\SOH\SUB> Mirrors StakePoolEntry (candidates_data_source/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\SYN\SOH\DC2\EOT\179\ENQ\b\SYN\n\
+    \\ETX\EOT\SYN\SOH\DC2\EOT\183\ENQ\b\SYN\n\
     \-\n\
-    \\EOT\EOT\SYN\STX\NUL\DC2\EOT\180\ENQ\STX\SYN\"\US 28 bytes (pool_hash.hash_raw)\n\
+    \\EOT\EOT\SYN\STX\NUL\DC2\EOT\184\ENQ\STX\SYN\"\US 28 bytes (pool_hash.hash_raw)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\NUL\ENQ\DC2\EOT\180\ENQ\STX\a\n\
+    \\ENQ\EOT\SYN\STX\NUL\ENQ\DC2\EOT\184\ENQ\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\NUL\SOH\DC2\EOT\180\ENQ\b\DC1\n\
+    \\ENQ\EOT\SYN\STX\NUL\SOH\DC2\EOT\184\ENQ\b\DC1\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\NUL\ETX\DC2\EOT\180\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\SYN\STX\NUL\ETX\DC2\EOT\184\ENQ\DC4\NAK\n\
     \)\n\
-    \\EOT\EOT\SYN\STX\SOH\DC2\EOT\181\ENQ\STX\DC3\"\ESC lovelace, summed per pool\n\
+    \\EOT\EOT\SYN\STX\SOH\DC2\EOT\185\ENQ\STX\DC3\"\ESC lovelace, summed per pool\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\SOH\ENQ\DC2\EOT\181\ENQ\STX\b\n\
+    \\ENQ\EOT\SYN\STX\SOH\ENQ\DC2\EOT\185\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\SOH\SOH\DC2\EOT\181\ENQ\t\SO\n\
+    \\ENQ\EOT\SYN\STX\SOH\SOH\DC2\EOT\185\ENQ\t\SO\n\
     \\r\n\
-    \\ENQ\EOT\SYN\STX\SOH\ETX\DC2\EOT\181\ENQ\DC1\DC2\n\
+    \\ENQ\EOT\SYN\STX\SOH\ETX\DC2\EOT\185\ENQ\DC1\DC2\n\
     \\f\n\
-    \\STX\EOT\ETB\DC2\ACK\184\ENQ\NUL\187\ENQ\SOH\n\
+    \\STX\EOT\ETB\DC2\ACK\188\ENQ\NUL\191\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\ETB\SOH\DC2\EOT\184\ENQ\b+\n\
+    \\ETX\EOT\ETB\SOH\DC2\EOT\188\ENQ\b+\n\
     \$\n\
-    \\EOT\EOT\ETB\STX\NUL\DC2\EOT\185\ENQ\STX\DC4\"\SYN exact (policy, name)\n\
+    \\EOT\EOT\ETB\STX\NUL\DC2\EOT\189\ENQ\STX\DC4\"\SYN exact (policy, name)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\NUL\ACK\DC2\EOT\185\ENQ\STX\t\n\
+    \\ENQ\EOT\ETB\STX\NUL\ACK\DC2\EOT\189\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\NUL\SOH\DC2\EOT\185\ENQ\n\
+    \\ENQ\EOT\ETB\STX\NUL\SOH\DC2\EOT\189\ENQ\n\
     \\SI\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\NUL\ETX\DC2\EOT\185\ENQ\DC2\DC3\n\
+    \\ENQ\EOT\ETB\STX\NUL\ETX\DC2\EOT\189\ENQ\DC2\DC3\n\
     \9\n\
-    \\EOT\EOT\ETB\STX\SOH\DC2\EOT\186\ENQ\STX\SYN\"+ origin block epoch_no <= this (inclusive)\n\
+    \\EOT\EOT\ETB\STX\SOH\DC2\EOT\190\ENQ\STX\SYN\"+ origin block epoch_no <= this (inclusive)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\SOH\ENQ\DC2\EOT\186\ENQ\STX\b\n\
+    \\ENQ\EOT\ETB\STX\SOH\ENQ\DC2\EOT\190\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\SOH\SOH\DC2\EOT\186\ENQ\t\DC1\n\
+    \\ENQ\EOT\ETB\STX\SOH\SOH\DC2\EOT\190\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\ETB\STX\SOH\ETX\DC2\EOT\186\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\ETB\STX\SOH\ETX\DC2\EOT\190\ENQ\DC4\NAK\n\
     \K\n\
-    \\STX\EOT\CAN\DC2\ACK\190\ENQ\NUL\198\ENQ\SOH\SUB= Mirrors TokenTxOutput (candidates_data_source/db_model.rs).\n\
+    \\STX\EOT\CAN\DC2\ACK\194\ENQ\NUL\202\ENQ\SOH\SUB= Mirrors TokenTxOutput (candidates_data_source/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\CAN\SOH\DC2\EOT\190\ENQ\b\NAK\n\
+    \\ETX\EOT\CAN\SOH\DC2\EOT\194\ENQ\b\NAK\n\
     \\CAN\n\
-    \\EOT\EOT\CAN\STX\NUL\DC2\EOT\191\ENQ\STX\ESC\"\n\
+    \\EOT\EOT\CAN\STX\NUL\DC2\EOT\195\ENQ\STX\ESC\"\n\
     \ 32 bytes\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\NUL\ENQ\DC2\EOT\191\ENQ\STX\a\n\
+    \\ENQ\EOT\CAN\STX\NUL\ENQ\DC2\EOT\195\ENQ\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\NUL\SOH\DC2\EOT\191\ENQ\b\SYN\n\
+    \\ENQ\EOT\CAN\STX\NUL\SOH\DC2\EOT\195\ENQ\b\SYN\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\NUL\ETX\DC2\EOT\191\ENQ\EM\SUB\n\
+    \\ENQ\EOT\CAN\STX\NUL\ETX\DC2\EOT\195\ENQ\EM\SUB\n\
     \\FS\n\
-    \\EOT\EOT\CAN\STX\SOH\DC2\EOT\192\ENQ\STX\CAN\"\SO TxIndex(u16)\n\
+    \\EOT\EOT\CAN\STX\SOH\DC2\EOT\196\ENQ\STX\CAN\"\SO TxIndex(u16)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\SOH\ENQ\DC2\EOT\192\ENQ\STX\b\n\
+    \\ENQ\EOT\CAN\STX\SOH\ENQ\DC2\EOT\196\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\SOH\SOH\DC2\EOT\192\ENQ\t\DC3\n\
+    \\ENQ\EOT\CAN\STX\SOH\SOH\DC2\EOT\196\ENQ\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\SOH\ETX\DC2\EOT\192\ENQ\SYN\ETB\n\
+    \\ENQ\EOT\CAN\STX\SOH\ETX\DC2\EOT\196\ENQ\SYN\ETB\n\
     \\f\n\
-    \\EOT\EOT\CAN\STX\STX\DC2\EOT\193\ENQ\STX\EM\n\
+    \\EOT\EOT\CAN\STX\STX\DC2\EOT\197\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\STX\ENQ\DC2\EOT\193\ENQ\STX\b\n\
+    \\ENQ\EOT\CAN\STX\STX\ENQ\DC2\EOT\197\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\STX\SOH\DC2\EOT\193\ENQ\t\DC4\n\
+    \\ENQ\EOT\CAN\STX\STX\SOH\DC2\EOT\197\ENQ\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\STX\ETX\DC2\EOT\193\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\CAN\STX\STX\ETX\DC2\EOT\197\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\CAN\STX\ETX\DC2\EOT\194\ENQ\STX\EM\n\
+    \\EOT\EOT\CAN\STX\ETX\DC2\EOT\198\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ETX\ENQ\DC2\EOT\194\ENQ\STX\b\n\
+    \\ENQ\EOT\CAN\STX\ETX\ENQ\DC2\EOT\198\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ETX\SOH\DC2\EOT\194\ENQ\t\DC4\n\
+    \\ENQ\EOT\CAN\STX\ETX\SOH\DC2\EOT\198\ENQ\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ETX\ETX\DC2\EOT\194\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\CAN\STX\ETX\ETX\DC2\EOT\198\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\CAN\STX\EOT\DC2\EOT\195\ENQ\STX\CAN\n\
+    \\EOT\EOT\CAN\STX\EOT\DC2\EOT\199\ENQ\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\EOT\ENQ\DC2\EOT\195\ENQ\STX\b\n\
+    \\ENQ\EOT\CAN\STX\EOT\ENQ\DC2\EOT\199\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\EOT\SOH\DC2\EOT\195\ENQ\t\DC3\n\
+    \\ENQ\EOT\CAN\STX\EOT\SOH\DC2\EOT\199\ENQ\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\EOT\ETX\DC2\EOT\195\ENQ\SYN\ETB\n\
+    \\ENQ\EOT\CAN\STX\EOT\ETX\DC2\EOT\199\ENQ\SYN\ETB\n\
     \\RS\n\
-    \\EOT\EOT\CAN\STX\ENQ\DC2\EOT\196\ENQ\STX\FS\"\DLE TxIndexInBlock\n\
+    \\EOT\EOT\CAN\STX\ENQ\DC2\EOT\200\ENQ\STX\FS\"\DLE TxIndexInBlock\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ENQ\ENQ\DC2\EOT\196\ENQ\STX\b\n\
+    \\ENQ\EOT\CAN\STX\ENQ\ENQ\DC2\EOT\200\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ENQ\SOH\DC2\EOT\196\ENQ\t\ETB\n\
+    \\ENQ\EOT\CAN\STX\ENQ\SOH\DC2\EOT\200\ENQ\t\ETB\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ENQ\ETX\DC2\EOT\196\ENQ\SUB\ESC\n\
+    \\ENQ\EOT\CAN\STX\ENQ\ETX\DC2\EOT\200\ENQ\SUB\ESC\n\
     \0\n\
-    \\EOT\EOT\CAN\STX\ACK\DC2\EOT\197\ENQ\STX\ESC\"\" LEFT JOIN; strict decode in Rust\n\
+    \\EOT\EOT\CAN\STX\ACK\DC2\EOT\201\ENQ\STX\ESC\"\" LEFT JOIN; strict decode in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ACK\EOT\DC2\EOT\197\ENQ\STX\n\
+    \\ENQ\EOT\CAN\STX\ACK\EOT\DC2\EOT\201\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ACK\ACK\DC2\EOT\197\ENQ\v\DLE\n\
+    \\ENQ\EOT\CAN\STX\ACK\ACK\DC2\EOT\201\ENQ\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ACK\SOH\DC2\EOT\197\ENQ\DC1\SYN\n\
+    \\ENQ\EOT\CAN\STX\ACK\SOH\DC2\EOT\201\ENQ\DC1\SYN\n\
     \\r\n\
-    \\ENQ\EOT\CAN\STX\ACK\ETX\DC2\EOT\197\ENQ\EM\SUB\n\
+    \\ENQ\EOT\CAN\STX\ACK\ETX\DC2\EOT\201\ENQ\EM\SUB\n\
     \\f\n\
-    \\STX\EOT\EM\DC2\ACK\200\ENQ\NUL\202\ENQ\SOH\n\
+    \\STX\EOT\EM\DC2\ACK\204\ENQ\NUL\206\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\EM\SOH\DC2\EOT\200\ENQ\b,\n\
+    \\ETX\EOT\EM\SOH\DC2\EOT\204\ENQ\b,\n\
     \\f\n\
-    \\EOT\EOT\EM\STX\NUL\DC2\EOT\201\ENQ\STX$\n\
+    \\EOT\EOT\EM\STX\NUL\DC2\EOT\205\ENQ\STX$\n\
     \\r\n\
-    \\ENQ\EOT\EM\STX\NUL\EOT\DC2\EOT\201\ENQ\STX\n\
+    \\ENQ\EOT\EM\STX\NUL\EOT\DC2\EOT\205\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\EM\STX\NUL\ACK\DC2\EOT\201\ENQ\v\CAN\n\
+    \\ENQ\EOT\EM\STX\NUL\ACK\DC2\EOT\205\ENQ\v\CAN\n\
     \\r\n\
-    \\ENQ\EOT\EM\STX\NUL\SOH\DC2\EOT\201\ENQ\EM\US\n\
+    \\ENQ\EOT\EM\STX\NUL\SOH\DC2\EOT\205\ENQ\EM\US\n\
     \\r\n\
-    \\ENQ\EOT\EM\STX\NUL\ETX\DC2\EOT\201\ENQ\"#\n\
+    \\ENQ\EOT\EM\STX\NUL\ETX\DC2\EOT\205\ENQ\"#\n\
     \\f\n\
-    \\STX\EOT\SUB\DC2\ACK\204\ENQ\NUL\206\ENQ\SOH\n\
+    \\STX\EOT\SUB\DC2\ACK\208\ENQ\NUL\210\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\SUB\SOH\DC2\EOT\204\ENQ\b\FS\n\
+    \\ETX\EOT\SUB\SOH\DC2\EOT\208\ENQ\b\FS\n\
     \\f\n\
-    \\EOT\EOT\SUB\STX\NUL\DC2\EOT\205\ENQ\STX\SYN\n\
+    \\EOT\EOT\SUB\STX\NUL\DC2\EOT\209\ENQ\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT\SUB\STX\NUL\ENQ\DC2\EOT\205\ENQ\STX\b\n\
+    \\ENQ\EOT\SUB\STX\NUL\ENQ\DC2\EOT\209\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\SUB\STX\NUL\SOH\DC2\EOT\205\ENQ\t\DC1\n\
+    \\ENQ\EOT\SUB\STX\NUL\SOH\DC2\EOT\209\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\SUB\STX\NUL\ETX\DC2\EOT\205\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\SUB\STX\NUL\ETX\DC2\EOT\209\ENQ\DC4\NAK\n\
     \Q\n\
-    \\STX\EOT\ESC\DC2\ACK\209\ENQ\NUL\211\ENQ\SOH\SUBC Mirrors MainchainEpochNonce (candidates_data_source/db_model.rs).\n\
+    \\STX\EOT\ESC\DC2\ACK\213\ENQ\NUL\215\ENQ\SOH\SUBC Mirrors MainchainEpochNonce (candidates_data_source/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\ESC\SOH\DC2\EOT\209\ENQ\b\GS\n\
+    \\ETX\EOT\ESC\SOH\DC2\EOT\213\ENQ\b\GS\n\
     \%\n\
-    \\EOT\EOT\ESC\STX\NUL\DC2\EOT\210\ENQ\STX\ESC\"\ETB 32 bytes when present\n\
+    \\EOT\EOT\ESC\STX\NUL\DC2\EOT\214\ENQ\STX\ESC\"\ETB 32 bytes when present\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\ESC\STX\NUL\EOT\DC2\EOT\210\ENQ\STX\n\
+    \\ENQ\EOT\ESC\STX\NUL\EOT\DC2\EOT\214\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\ESC\STX\NUL\ENQ\DC2\EOT\210\ENQ\v\DLE\n\
+    \\ENQ\EOT\ESC\STX\NUL\ENQ\DC2\EOT\214\ENQ\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\ESC\STX\NUL\SOH\DC2\EOT\210\ENQ\DC1\SYN\n\
+    \\ENQ\EOT\ESC\STX\NUL\SOH\DC2\EOT\214\ENQ\DC1\SYN\n\
     \\r\n\
-    \\ENQ\EOT\ESC\STX\NUL\ETX\DC2\EOT\210\ENQ\EM\SUB\n\
+    \\ENQ\EOT\ESC\STX\NUL\ETX\DC2\EOT\214\ENQ\EM\SUB\n\
     \\f\n\
-    \\STX\EOT\FS\DC2\ACK\213\ENQ\NUL\216\ENQ\SOH\n\
+    \\STX\EOT\FS\DC2\ACK\217\ENQ\NUL\220\ENQ\SOH\n\
     \\v\n\
-    \\ETX\EOT\FS\SOH\DC2\EOT\213\ENQ\b)\n\
+    \\ETX\EOT\FS\SOH\DC2\EOT\217\ENQ\b)\n\
     \E\n\
-    \\EOT\EOT\FS\STX\NUL\DC2\EOT\214\ENQ\STX\NAK\"7 committee candidate validator address (text equality)\n\
+    \\EOT\EOT\FS\STX\NUL\DC2\EOT\218\ENQ\STX\NAK\"7 committee candidate validator address (text equality)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\NUL\ENQ\DC2\EOT\214\ENQ\STX\b\n\
+    \\ENQ\EOT\FS\STX\NUL\ENQ\DC2\EOT\218\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\NUL\SOH\DC2\EOT\214\ENQ\t\DLE\n\
+    \\ENQ\EOT\FS\STX\NUL\SOH\DC2\EOT\218\ENQ\t\DLE\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\NUL\ETX\DC2\EOT\214\ENQ\DC3\DC4\n\
+    \\ENQ\EOT\FS\STX\NUL\ETX\DC2\EOT\218\ENQ\DC3\DC4\n\
     \C\n\
-    \\EOT\EOT\FS\STX\SOH\DC2\EOT\215\ENQ\STX\SYN\"5 created at <= block_no, not consumed at <= block_no\n\
+    \\EOT\EOT\FS\STX\SOH\DC2\EOT\219\ENQ\STX\SYN\"5 created at <= block_no, not consumed at <= block_no\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\SOH\ENQ\DC2\EOT\215\ENQ\STX\b\n\
+    \\ENQ\EOT\FS\STX\SOH\ENQ\DC2\EOT\219\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\SOH\SOH\DC2\EOT\215\ENQ\t\DC1\n\
+    \\ENQ\EOT\FS\STX\SOH\SOH\DC2\EOT\219\ENQ\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\FS\STX\SOH\ETX\DC2\EOT\215\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\FS\STX\SOH\ETX\DC2\EOT\219\ENQ\DC4\NAK\n\
     \g\n\
-    \\STX\EOT\GS\DC2\ACK\220\ENQ\NUL\233\ENQ\SOH\SUBY Mirrors MainchainTxOutputRow / MainchainTxOutput\n\
+    \\STX\EOT\GS\DC2\ACK\224\ENQ\NUL\237\ENQ\SOH\SUBY Mirrors MainchainTxOutputRow / MainchainTxOutput\n\
     \ (candidates_data_source/db_model.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\GS\SOH\DC2\EOT\220\ENQ\b\CAN\n\
+    \\ETX\EOT\GS\SOH\DC2\EOT\224\ENQ\b\CAN\n\
     \\US\n\
-    \\EOT\EOT\GS\STX\NUL\DC2\EOT\221\ENQ\STX\EM\"\DC1 utxo_id_tx_hash\n\
+    \\EOT\EOT\GS\STX\NUL\DC2\EOT\225\ENQ\STX\EM\"\DC1 utxo_id_tx_hash\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\NUL\ENQ\DC2\EOT\221\ENQ\STX\a\n\
+    \\ENQ\EOT\GS\STX\NUL\ENQ\DC2\EOT\225\ENQ\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\NUL\SOH\DC2\EOT\221\ENQ\b\DC4\n\
+    \\ENQ\EOT\GS\STX\NUL\SOH\DC2\EOT\225\ENQ\b\DC4\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\NUL\ETX\DC2\EOT\221\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\GS\STX\NUL\ETX\DC2\EOT\225\ENQ\ETB\CAN\n\
     \+\n\
-    \\EOT\EOT\GS\STX\SOH\DC2\EOT\222\ENQ\STX\CAN\"\GS utxo_id_index: TxIndex(u16)\n\
+    \\EOT\EOT\GS\STX\SOH\DC2\EOT\226\ENQ\STX\CAN\"\GS utxo_id_index: TxIndex(u16)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\SOH\ENQ\DC2\EOT\222\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\SOH\ENQ\DC2\EOT\226\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\SOH\SOH\DC2\EOT\222\ENQ\t\DC3\n\
+    \\ENQ\EOT\GS\STX\SOH\SOH\DC2\EOT\226\ENQ\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\SOH\ETX\DC2\EOT\222\ENQ\SYN\ETB\n\
+    \\ENQ\EOT\GS\STX\SOH\ETX\DC2\EOT\226\ENQ\SYN\ETB\n\
     \\f\n\
-    \\EOT\EOT\GS\STX\STX\DC2\EOT\223\ENQ\STX\EM\n\
+    \\EOT\EOT\GS\STX\STX\DC2\EOT\227\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\STX\ENQ\DC2\EOT\223\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\STX\ENQ\DC2\EOT\227\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\STX\SOH\DC2\EOT\223\ENQ\t\DC4\n\
+    \\ENQ\EOT\GS\STX\STX\SOH\DC2\EOT\227\ENQ\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\STX\ETX\DC2\EOT\223\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\GS\STX\STX\ETX\DC2\EOT\227\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\GS\STX\ETX\DC2\EOT\224\ENQ\STX\CAN\n\
+    \\EOT\EOT\GS\STX\ETX\DC2\EOT\228\ENQ\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ETX\ENQ\DC2\EOT\224\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\ETX\ENQ\DC2\EOT\228\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ETX\SOH\DC2\EOT\224\ENQ\t\DC3\n\
+    \\ENQ\EOT\GS\STX\ETX\SOH\DC2\EOT\228\ENQ\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ETX\ETX\DC2\EOT\224\ENQ\SYN\ETB\n\
+    \\ENQ\EOT\GS\STX\ETX\ETX\DC2\EOT\228\ENQ\SYN\ETB\n\
     \\f\n\
-    \\EOT\EOT\GS\STX\EOT\DC2\EOT\225\ENQ\STX\EM\n\
+    \\EOT\EOT\GS\STX\EOT\DC2\EOT\229\ENQ\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\EOT\ENQ\DC2\EOT\225\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\EOT\ENQ\DC2\EOT\229\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\EOT\SOH\DC2\EOT\225\ENQ\t\DC4\n\
+    \\ENQ\EOT\GS\STX\EOT\SOH\DC2\EOT\229\ENQ\t\DC4\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\EOT\ETX\DC2\EOT\225\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\GS\STX\EOT\ETX\DC2\EOT\229\ENQ\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT\GS\STX\ENQ\DC2\EOT\226\ENQ\STX\US\n\
+    \\EOT\EOT\GS\STX\ENQ\DC2\EOT\230\ENQ\STX\US\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ENQ\ENQ\DC2\EOT\226\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\ENQ\ENQ\DC2\EOT\230\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ENQ\SOH\DC2\EOT\226\ENQ\t\SUB\n\
+    \\ENQ\EOT\GS\STX\ENQ\SOH\DC2\EOT\230\ENQ\t\SUB\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ENQ\ETX\DC2\EOT\226\ENQ\GS\RS\n\
+    \\ENQ\EOT\GS\STX\ENQ\ETX\DC2\EOT\230\ENQ\GS\RS\n\
     \#\n\
-    \\EOT\EOT\GS\STX\ACK\DC2\EOT\227\ENQ\STX\NAK\"\NAK tx_out.address text\n\
+    \\EOT\EOT\GS\STX\ACK\DC2\EOT\231\ENQ\STX\NAK\"\NAK tx_out.address text\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ACK\ENQ\DC2\EOT\227\ENQ\STX\b\n\
+    \\ENQ\EOT\GS\STX\ACK\ENQ\DC2\EOT\231\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ACK\SOH\DC2\EOT\227\ENQ\t\DLE\n\
+    \\ENQ\EOT\GS\STX\ACK\SOH\DC2\EOT\231\ENQ\t\DLE\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\ACK\ETX\DC2\EOT\227\ENQ\DC3\DC4\n\
+    \\ENQ\EOT\GS\STX\ACK\ETX\DC2\EOT\231\ENQ\DC3\DC4\n\
     \1\n\
-    \\EOT\EOT\GS\STX\a\DC2\EOT\228\ENQ\STX\ESC\"# LEFT JOIN; DbDatumIfValid in Rust\n\
+    \\EOT\EOT\GS\STX\a\DC2\EOT\232\ENQ\STX\ESC\"# LEFT JOIN; DbDatumIfValid in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\a\EOT\DC2\EOT\228\ENQ\STX\n\
+    \\ENQ\EOT\GS\STX\a\EOT\DC2\EOT\232\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\a\ACK\DC2\EOT\228\ENQ\v\DLE\n\
+    \\ENQ\EOT\GS\STX\a\ACK\DC2\EOT\232\ENQ\v\DLE\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\a\SOH\DC2\EOT\228\ENQ\DC1\SYN\n\
+    \\ENQ\EOT\GS\STX\a\SOH\DC2\EOT\232\ENQ\DC1\SYN\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\a\ETX\DC2\EOT\228\ENQ\EM\SUB\n\
+    \\ENQ\EOT\GS\STX\a\ETX\DC2\EOT\232\ENQ\EM\SUB\n\
     \\179\SOH\n\
-    \\EOT\EOT\GS\STX\b\DC2\EOT\232\ENQ\STX#\SUB\164\SOH Inputs of the creating transaction, ordered by (tx_hash bytes ASC,\n\
+    \\EOT\EOT\GS\STX\b\DC2\EOT\236\ENQ\STX#\SUB\164\SOH Inputs of the creating transaction, ordered by (tx_hash bytes ASC,\n\
     \ index ASC). The SQL emits them as \"hex#index\" strings that Rust parses\n\
     \ with UtxoId::from_str.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\b\EOT\DC2\EOT\232\ENQ\STX\n\
+    \\ENQ\EOT\GS\STX\b\EOT\DC2\EOT\236\ENQ\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\b\ACK\DC2\EOT\232\ENQ\v\DC4\n\
+    \\ENQ\EOT\GS\STX\b\ACK\DC2\EOT\236\ENQ\v\DC4\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\b\SOH\DC2\EOT\232\ENQ\NAK\RS\n\
+    \\ENQ\EOT\GS\STX\b\SOH\DC2\EOT\236\ENQ\NAK\RS\n\
     \\r\n\
-    \\ENQ\EOT\GS\STX\b\ETX\DC2\EOT\232\ENQ!\"\n\
+    \\ENQ\EOT\GS\STX\b\ETX\DC2\EOT\236\ENQ!\"\n\
     \\185\SOH\n\
-    \\STX\EOT\RS\DC2\ACK\239\ENQ\NUL\247\ENQ\SOH2\170\SOH =========================================================================\n\
+    \\STX\EOT\RS\DC2\ACK\243\ENQ\NUL\251\ENQ\SOH2\170\SOH =========================================================================\n\
     \ cNIGHT observation\n\
     \ =========================================================================\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\RS\SOH\DC2\EOT\239\ENQ\b&\n\
+    \\ETX\EOT\RS\SOH\DC2\EOT\243\ENQ\b&\n\
     \\GS\n\
-    \\EOT\EOT\RS\STX\NUL\DC2\EOT\240\ENQ\STX'\"\SI text equality\n\
+    \\EOT\EOT\RS\STX\NUL\DC2\EOT\244\ENQ\STX'\"\SI text equality\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\NUL\ENQ\DC2\EOT\240\ENQ\STX\b\n\
+    \\ENQ\EOT\RS\STX\NUL\ENQ\DC2\EOT\244\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\NUL\SOH\DC2\EOT\240\ENQ\t\"\n\
+    \\ENQ\EOT\RS\STX\NUL\SOH\DC2\EOT\244\ENQ\t\"\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\NUL\ETX\DC2\EOT\240\ENQ%&\n\
+    \\ENQ\EOT\RS\STX\NUL\ETX\DC2\EOT\244\ENQ%&\n\
     \\150\SOH\n\
-    \\EOT\EOT\RS\STX\SOH\DC2\EOT\243\ENQ\STX\EM\SUB\135\SOH Auth token: policy = mapping validator script hash, name = auth token\n\
+    \\EOT\EOT\RS\STX\SOH\DC2\EOT\247\ENQ\STX\EM\SUB\135\SOH Auth token: policy = mapping validator script hash, name = auth token\n\
     \ asset name (cnight_observation.rs). Rows require quantity = 1.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\SOH\ACK\DC2\EOT\243\ENQ\STX\t\n\
+    \\ENQ\EOT\RS\STX\SOH\ACK\DC2\EOT\247\ENQ\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\SOH\SOH\DC2\EOT\243\ENQ\n\
+    \\ENQ\EOT\RS\STX\SOH\SOH\DC2\EOT\247\ENQ\n\
     \\DC4\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\SOH\ETX\DC2\EOT\243\ENQ\ETB\CAN\n\
+    \\ENQ\EOT\RS\STX\SOH\ETX\DC2\EOT\247\ENQ\ETB\CAN\n\
     \$\n\
-    \\EOT\EOT\RS\STX\STX\DC2\EOT\244\ENQ\STX\FS\"\SYN creating tx position\n\
+    \\EOT\EOT\RS\STX\STX\DC2\EOT\248\ENQ\STX\FS\"\SYN creating tx position\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\STX\ACK\DC2\EOT\244\ENQ\STX\DLE\n\
+    \\ENQ\EOT\RS\STX\STX\ACK\DC2\EOT\248\ENQ\STX\DLE\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\STX\SOH\DC2\EOT\244\ENQ\DC1\ETB\n\
+    \\ENQ\EOT\RS\STX\STX\SOH\DC2\EOT\248\ENQ\DC1\ETB\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\STX\ETX\DC2\EOT\244\ENQ\SUB\ESC\n\
+    \\ENQ\EOT\RS\STX\STX\ETX\DC2\EOT\248\ENQ\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT\RS\STX\ETX\DC2\EOT\245\ENQ\STX\DC3\n\
+    \\EOT\EOT\RS\STX\ETX\DC2\EOT\249\ENQ\STX\DC3\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\ETX\ENQ\DC2\EOT\245\ENQ\STX\b\n\
+    \\ENQ\EOT\RS\STX\ETX\ENQ\DC2\EOT\249\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\ETX\SOH\DC2\EOT\245\ENQ\t\SO\n\
+    \\ENQ\EOT\RS\STX\ETX\SOH\DC2\EOT\249\ENQ\t\SO\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\ETX\ETX\DC2\EOT\245\ENQ\DC1\DC2\n\
+    \\ENQ\EOT\RS\STX\ETX\ETX\DC2\EOT\249\ENQ\DC1\DC2\n\
     \\f\n\
-    \\EOT\EOT\RS\STX\EOT\DC2\EOT\246\ENQ\STX\DC4\n\
+    \\EOT\EOT\RS\STX\EOT\DC2\EOT\250\ENQ\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\EOT\ENQ\DC2\EOT\246\ENQ\STX\b\n\
+    \\ENQ\EOT\RS\STX\EOT\ENQ\DC2\EOT\250\ENQ\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\EOT\SOH\DC2\EOT\246\ENQ\t\SI\n\
+    \\ENQ\EOT\RS\STX\EOT\SOH\DC2\EOT\250\ENQ\t\SI\n\
     \\r\n\
-    \\ENQ\EOT\RS\STX\EOT\ETX\DC2\EOT\246\ENQ\DC2\DC3\n\
+    \\ENQ\EOT\RS\STX\EOT\ETX\DC2\EOT\250\ENQ\DC2\DC3\n\
     \9\n\
-    \\STX\EOT\US\DC2\ACK\250\ENQ\NUL\132\ACK\SOH\SUB+ Mirrors RegistrationRow (MF/db/types.rs).\n\
+    \\STX\EOT\US\DC2\ACK\254\ENQ\NUL\136\ACK\SOH\SUB+ Mirrors RegistrationRow (MF/db/types.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT\US\SOH\DC2\EOT\250\ENQ\b\ETB\n\
+    \\ETX\EOT\US\SOH\DC2\EOT\254\ENQ\b\ETB\n\
     \?\n\
-    \\EOT\EOT\US\STX\NUL\DC2\EOT\251\ENQ\STX\DC2\"1 always set (INNER JOIN); DbDatumIfValid in Rust\n\
+    \\EOT\EOT\US\STX\NUL\DC2\EOT\255\ENQ\STX\DC2\"1 always set (INNER JOIN); DbDatumIfValid in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\NUL\ACK\DC2\EOT\251\ENQ\STX\a\n\
+    \\ENQ\EOT\US\STX\NUL\ACK\DC2\EOT\255\ENQ\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\NUL\SOH\DC2\EOT\251\ENQ\b\r\n\
+    \\ENQ\EOT\US\STX\NUL\SOH\DC2\EOT\255\ENQ\b\r\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\NUL\ETX\DC2\EOT\251\ENQ\DLE\DC1\n\
+    \\ENQ\EOT\US\STX\NUL\ETX\DC2\EOT\255\ENQ\DLE\DC1\n\
     \\f\n\
-    \\EOT\EOT\US\STX\SOH\DC2\EOT\252\ENQ\STX\SYN\n\
+    \\EOT\EOT\US\STX\SOH\DC2\EOT\128\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\SOH\ENQ\DC2\EOT\252\ENQ\STX\b\n\
+    \\ENQ\EOT\US\STX\SOH\ENQ\DC2\EOT\128\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\SOH\SOH\DC2\EOT\252\ENQ\t\DC1\n\
+    \\ENQ\EOT\US\STX\SOH\SOH\DC2\EOT\128\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\SOH\ETX\DC2\EOT\252\ENQ\DC4\NAK\n\
+    \\ENQ\EOT\US\STX\SOH\ETX\DC2\EOT\128\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT\US\STX\STX\DC2\EOT\253\ENQ\STX\ETB\n\
+    \\EOT\EOT\US\STX\STX\DC2\EOT\129\ACK\STX\ETB\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\STX\ENQ\DC2\EOT\253\ENQ\STX\a\n\
+    \\ENQ\EOT\US\STX\STX\ENQ\DC2\EOT\129\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\STX\SOH\DC2\EOT\253\ENQ\b\DC2\n\
+    \\ENQ\EOT\US\STX\STX\SOH\DC2\EOT\129\ACK\b\DC2\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\STX\ETX\DC2\EOT\253\ENQ\NAK\SYN\n\
+    \\ENQ\EOT\US\STX\STX\ETX\DC2\EOT\129\ACK\NAK\SYN\n\
     \\138\SOH\n\
-    \\EOT\EOT\US\STX\ETX\DC2\EOT\128\ACK\STX#\SUB| Rust ends with CardanoPosition.block_timestamp in ms\n\
+    \\EOT\EOT\US\STX\ETX\DC2\EOT\132\ACK\STX#\SUB| Rust ends with CardanoPosition.block_timestamp in ms\n\
     \ (TimestampUnixMillis(i64)); always a multiple of 1000 (SPEC 4.time).\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ETX\ENQ\DC2\EOT\128\ACK\STX\a\n\
+    \\ENQ\EOT\US\STX\ETX\ENQ\DC2\EOT\132\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ETX\SOH\DC2\EOT\128\ACK\b\RS\n\
+    \\ENQ\EOT\US\STX\ETX\SOH\DC2\EOT\132\ACK\b\RS\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ETX\ETX\DC2\EOT\128\ACK!\"\n\
+    \\ENQ\EOT\US\STX\ETX\ETX\DC2\EOT\132\ACK!\"\n\
     \\f\n\
-    \\EOT\EOT\US\STX\EOT\DC2\EOT\129\ACK\STX\SYN\n\
+    \\EOT\EOT\US\STX\EOT\DC2\EOT\133\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\EOT\ENQ\DC2\EOT\129\ACK\STX\b\n\
+    \\ENQ\EOT\US\STX\EOT\ENQ\DC2\EOT\133\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\EOT\SOH\DC2\EOT\129\ACK\t\DC1\n\
+    \\ENQ\EOT\US\STX\EOT\SOH\DC2\EOT\133\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\EOT\ETX\DC2\EOT\129\ACK\DC4\NAK\n\
+    \\ENQ\EOT\US\STX\EOT\ETX\DC2\EOT\133\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT\US\STX\ENQ\DC2\EOT\130\ACK\STX\DC4\n\
+    \\EOT\EOT\US\STX\ENQ\DC2\EOT\134\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ENQ\ENQ\DC2\EOT\130\ACK\STX\a\n\
+    \\ENQ\EOT\US\STX\ENQ\ENQ\DC2\EOT\134\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ENQ\SOH\DC2\EOT\130\ACK\b\SI\n\
+    \\ENQ\EOT\US\STX\ENQ\SOH\DC2\EOT\134\ACK\b\SI\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ENQ\ETX\DC2\EOT\130\ACK\DC2\DC3\n\
+    \\ENQ\EOT\US\STX\ENQ\ETX\DC2\EOT\134\ACK\DC2\DC3\n\
     \\f\n\
-    \\EOT\EOT\US\STX\ACK\DC2\EOT\131\ACK\STX\CAN\n\
+    \\EOT\EOT\US\STX\ACK\DC2\EOT\135\ACK\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ACK\ENQ\DC2\EOT\131\ACK\STX\b\n\
+    \\ENQ\EOT\US\STX\ACK\ENQ\DC2\EOT\135\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ACK\SOH\DC2\EOT\131\ACK\t\DC3\n\
+    \\ENQ\EOT\US\STX\ACK\SOH\DC2\EOT\135\ACK\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT\US\STX\ACK\ETX\DC2\EOT\131\ACK\SYN\ETB\n\
+    \\ENQ\EOT\US\STX\ACK\ETX\DC2\EOT\135\ACK\SYN\ETB\n\
     \\f\n\
-    \\STX\EOT \DC2\ACK\134\ACK\NUL\139\ACK\SOH\n\
+    \\STX\EOT \DC2\ACK\138\ACK\NUL\143\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT \SOH\DC2\EOT\134\ACK\b(\n\
+    \\ETX\EOT \SOH\DC2\EOT\138\ACK\b(\n\
     \\GS\n\
-    \\EOT\EOT \STX\NUL\DC2\EOT\135\ACK\STX'\"\SI text equality\n\
+    \\EOT\EOT \STX\NUL\DC2\EOT\139\ACK\STX'\"\SI text equality\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT \STX\NUL\ENQ\DC2\EOT\135\ACK\STX\b\n\
+    \\ENQ\EOT \STX\NUL\ENQ\DC2\EOT\139\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT \STX\NUL\SOH\DC2\EOT\135\ACK\t\"\n\
+    \\ENQ\EOT \STX\NUL\SOH\DC2\EOT\139\ACK\t\"\n\
     \\r\n\
-    \\ENQ\EOT \STX\NUL\ETX\DC2\EOT\135\ACK%&\n\
+    \\ENQ\EOT \STX\NUL\ETX\DC2\EOT\139\ACK%&\n\
     \$\n\
-    \\EOT\EOT \STX\SOH\DC2\EOT\136\ACK\STX\FS\"\SYN spending tx position\n\
+    \\EOT\EOT \STX\SOH\DC2\EOT\140\ACK\STX\FS\"\SYN spending tx position\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT \STX\SOH\ACK\DC2\EOT\136\ACK\STX\DLE\n\
+    \\ENQ\EOT \STX\SOH\ACK\DC2\EOT\140\ACK\STX\DLE\n\
     \\r\n\
-    \\ENQ\EOT \STX\SOH\SOH\DC2\EOT\136\ACK\DC1\ETB\n\
+    \\ENQ\EOT \STX\SOH\SOH\DC2\EOT\140\ACK\DC1\ETB\n\
     \\r\n\
-    \\ENQ\EOT \STX\SOH\ETX\DC2\EOT\136\ACK\SUB\ESC\n\
+    \\ENQ\EOT \STX\SOH\ETX\DC2\EOT\140\ACK\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT \STX\STX\DC2\EOT\137\ACK\STX\DC3\n\
+    \\EOT\EOT \STX\STX\DC2\EOT\141\ACK\STX\DC3\n\
     \\r\n\
-    \\ENQ\EOT \STX\STX\ENQ\DC2\EOT\137\ACK\STX\b\n\
+    \\ENQ\EOT \STX\STX\ENQ\DC2\EOT\141\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT \STX\STX\SOH\DC2\EOT\137\ACK\t\SO\n\
+    \\ENQ\EOT \STX\STX\SOH\DC2\EOT\141\ACK\t\SO\n\
     \\r\n\
-    \\ENQ\EOT \STX\STX\ETX\DC2\EOT\137\ACK\DC1\DC2\n\
+    \\ENQ\EOT \STX\STX\ETX\DC2\EOT\141\ACK\DC1\DC2\n\
     \\f\n\
-    \\EOT\EOT \STX\ETX\DC2\EOT\138\ACK\STX\DC4\n\
+    \\EOT\EOT \STX\ETX\DC2\EOT\142\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT \STX\ETX\ENQ\DC2\EOT\138\ACK\STX\b\n\
+    \\ENQ\EOT \STX\ETX\ENQ\DC2\EOT\142\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT \STX\ETX\SOH\DC2\EOT\138\ACK\t\SI\n\
+    \\ENQ\EOT \STX\ETX\SOH\DC2\EOT\142\ACK\t\SI\n\
     \\r\n\
-    \\ENQ\EOT \STX\ETX\ETX\DC2\EOT\138\ACK\DC2\DC3\n\
+    \\ENQ\EOT \STX\ETX\ETX\DC2\EOT\142\ACK\DC2\DC3\n\
     \;\n\
-    \\STX\EOT!\DC2\ACK\142\ACK\NUL\151\ACK\SOH\SUB- Mirrors DeregistrationRow (MF/db/types.rs).\n\
+    \\STX\EOT!\DC2\ACK\146\ACK\NUL\155\ACK\SOH\SUB- Mirrors DeregistrationRow (MF/db/types.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT!\SOH\DC2\EOT\142\ACK\b\EM\n\
+    \\ETX\EOT!\SOH\DC2\EOT\146\ACK\b\EM\n\
     \?\n\
-    \\EOT\EOT!\STX\NUL\DC2\EOT\143\ACK\STX\DC2\"1 always set (INNER JOIN); DbDatumIfValid in Rust\n\
+    \\EOT\EOT!\STX\NUL\DC2\EOT\147\ACK\STX\DC2\"1 always set (INNER JOIN); DbDatumIfValid in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\NUL\ACK\DC2\EOT\143\ACK\STX\a\n\
+    \\ENQ\EOT!\STX\NUL\ACK\DC2\EOT\147\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT!\STX\NUL\SOH\DC2\EOT\143\ACK\b\r\n\
+    \\ENQ\EOT!\STX\NUL\SOH\DC2\EOT\147\ACK\b\r\n\
     \\r\n\
-    \\ENQ\EOT!\STX\NUL\ETX\DC2\EOT\143\ACK\DLE\DC1\n\
+    \\ENQ\EOT!\STX\NUL\ETX\DC2\EOT\147\ACK\DLE\DC1\n\
     \\RS\n\
-    \\EOT\EOT!\STX\SOH\DC2\EOT\144\ACK\STX\SYN\"\DLE spending block\n\
+    \\EOT\EOT!\STX\SOH\DC2\EOT\148\ACK\STX\SYN\"\DLE spending block\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\SOH\ENQ\DC2\EOT\144\ACK\STX\b\n\
+    \\ENQ\EOT!\STX\SOH\ENQ\DC2\EOT\148\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT!\STX\SOH\SOH\DC2\EOT\144\ACK\t\DC1\n\
+    \\ENQ\EOT!\STX\SOH\SOH\DC2\EOT\148\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT!\STX\SOH\ETX\DC2\EOT\144\ACK\DC4\NAK\n\
+    \\ENQ\EOT!\STX\SOH\ETX\DC2\EOT\148\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT!\STX\STX\DC2\EOT\145\ACK\STX\ETB\n\
+    \\EOT\EOT!\STX\STX\DC2\EOT\149\ACK\STX\ETB\n\
     \\r\n\
-    \\ENQ\EOT!\STX\STX\ENQ\DC2\EOT\145\ACK\STX\a\n\
+    \\ENQ\EOT!\STX\STX\ENQ\DC2\EOT\149\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT!\STX\STX\SOH\DC2\EOT\145\ACK\b\DC2\n\
+    \\ENQ\EOT!\STX\STX\SOH\DC2\EOT\149\ACK\b\DC2\n\
     \\r\n\
-    \\ENQ\EOT!\STX\STX\ETX\DC2\EOT\145\ACK\NAK\SYN\n\
+    \\ENQ\EOT!\STX\STX\ETX\DC2\EOT\149\ACK\NAK\SYN\n\
     \\f\n\
-    \\EOT\EOT!\STX\ETX\DC2\EOT\146\ACK\STX#\n\
+    \\EOT\EOT!\STX\ETX\DC2\EOT\150\ACK\STX#\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ETX\ENQ\DC2\EOT\146\ACK\STX\a\n\
+    \\ENQ\EOT!\STX\ETX\ENQ\DC2\EOT\150\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ETX\SOH\DC2\EOT\146\ACK\b\RS\n\
+    \\ENQ\EOT!\STX\ETX\SOH\DC2\EOT\150\ACK\b\RS\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ETX\ETX\DC2\EOT\146\ACK!\"\n\
+    \\ENQ\EOT!\STX\ETX\ETX\DC2\EOT\150\ACK!\"\n\
     \*\n\
-    \\EOT\EOT!\STX\EOT\DC2\EOT\147\ACK\STX\SYN\"\FS spending tx index in block\n\
+    \\EOT\EOT!\STX\EOT\DC2\EOT\151\ACK\STX\SYN\"\FS spending tx index in block\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\EOT\ENQ\DC2\EOT\147\ACK\STX\b\n\
+    \\ENQ\EOT!\STX\EOT\ENQ\DC2\EOT\151\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT!\STX\EOT\SOH\DC2\EOT\147\ACK\t\DC1\n\
+    \\ENQ\EOT!\STX\EOT\SOH\DC2\EOT\151\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT!\STX\EOT\ETX\DC2\EOT\147\ACK\DC4\NAK\n\
+    \\ENQ\EOT!\STX\EOT\ETX\DC2\EOT\151\ACK\DC4\NAK\n\
     \ \n\
-    \\EOT\EOT!\STX\ENQ\DC2\EOT\148\ACK\STX\DC4\"\DC2 spending tx hash\n\
+    \\EOT\EOT!\STX\ENQ\DC2\EOT\152\ACK\STX\DC4\"\DC2 spending tx hash\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ENQ\ENQ\DC2\EOT\148\ACK\STX\a\n\
+    \\ENQ\EOT!\STX\ENQ\ENQ\DC2\EOT\152\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ENQ\SOH\DC2\EOT\148\ACK\b\SI\n\
+    \\ENQ\EOT!\STX\ENQ\SOH\DC2\EOT\152\ACK\b\SI\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ENQ\ETX\DC2\EOT\148\ACK\DC2\DC3\n\
+    \\ENQ\EOT!\STX\ENQ\ETX\DC2\EOT\152\ACK\DC2\DC3\n\
     \&\n\
-    \\EOT\EOT!\STX\ACK\DC2\EOT\149\ACK\STX\EM\"\CAN spent output's tx hash\n\
+    \\EOT\EOT!\STX\ACK\DC2\EOT\153\ACK\STX\EM\"\CAN spent output's tx hash\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ACK\ENQ\DC2\EOT\149\ACK\STX\a\n\
+    \\ENQ\EOT!\STX\ACK\ENQ\DC2\EOT\153\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ACK\SOH\DC2\EOT\149\ACK\b\DC4\n\
+    \\ENQ\EOT!\STX\ACK\SOH\DC2\EOT\153\ACK\b\DC4\n\
     \\r\n\
-    \\ENQ\EOT!\STX\ACK\ETX\DC2\EOT\149\ACK\ETB\CAN\n\
+    \\ENQ\EOT!\STX\ACK\ETX\DC2\EOT\153\ACK\ETB\CAN\n\
     \$\n\
-    \\EOT\EOT!\STX\a\DC2\EOT\150\ACK\STX\CAN\"\SYN spent output's index\n\
+    \\EOT\EOT!\STX\a\DC2\EOT\154\ACK\STX\CAN\"\SYN spent output's index\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT!\STX\a\ENQ\DC2\EOT\150\ACK\STX\b\n\
+    \\ENQ\EOT!\STX\a\ENQ\DC2\EOT\154\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT!\STX\a\SOH\DC2\EOT\150\ACK\t\DC3\n\
+    \\ENQ\EOT!\STX\a\SOH\DC2\EOT\154\ACK\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT!\STX\a\ETX\DC2\EOT\150\ACK\SYN\ETB\n\
+    \\ENQ\EOT!\STX\a\ETX\DC2\EOT\154\ACK\SYN\ETB\n\
     \\f\n\
-    \\STX\EOT\"\DC2\ACK\153\ACK\NUL\158\ACK\SOH\n\
+    \\STX\EOT\"\DC2\ACK\157\ACK\NUL\162\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT\"\SOH\DC2\EOT\153\ACK\b\RS\n\
+    \\ETX\EOT\"\SOH\DC2\EOT\157\ACK\b\RS\n\
     \%\n\
-    \\EOT\EOT\"\STX\NUL\DC2\EOT\154\ACK\STX\DC4\"\ETB cNIGHT (policy, name)\n\
+    \\EOT\EOT\"\STX\NUL\DC2\EOT\158\ACK\STX\DC4\"\ETB cNIGHT (policy, name)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\NUL\ACK\DC2\EOT\154\ACK\STX\t\n\
+    \\ENQ\EOT\"\STX\NUL\ACK\DC2\EOT\158\ACK\STX\t\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\NUL\SOH\DC2\EOT\154\ACK\n\
+    \\ENQ\EOT\"\STX\NUL\SOH\DC2\EOT\158\ACK\n\
     \\SI\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\NUL\ETX\DC2\EOT\154\ACK\DC2\DC3\n\
+    \\ENQ\EOT\"\STX\NUL\ETX\DC2\EOT\158\ACK\DC2\DC3\n\
     \$\n\
-    \\EOT\EOT\"\STX\SOH\DC2\EOT\155\ACK\STX\FS\"\SYN creating tx position\n\
+    \\EOT\EOT\"\STX\SOH\DC2\EOT\159\ACK\STX\FS\"\SYN creating tx position\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\SOH\ACK\DC2\EOT\155\ACK\STX\DLE\n\
+    \\ENQ\EOT\"\STX\SOH\ACK\DC2\EOT\159\ACK\STX\DLE\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\SOH\SOH\DC2\EOT\155\ACK\DC1\ETB\n\
+    \\ENQ\EOT\"\STX\SOH\SOH\DC2\EOT\159\ACK\DC1\ETB\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\SOH\ETX\DC2\EOT\155\ACK\SUB\ESC\n\
+    \\ENQ\EOT\"\STX\SOH\ETX\DC2\EOT\159\ACK\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT\"\STX\STX\DC2\EOT\156\ACK\STX\DC3\n\
+    \\EOT\EOT\"\STX\STX\DC2\EOT\160\ACK\STX\DC3\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\STX\ENQ\DC2\EOT\156\ACK\STX\b\n\
+    \\ENQ\EOT\"\STX\STX\ENQ\DC2\EOT\160\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\STX\SOH\DC2\EOT\156\ACK\t\SO\n\
+    \\ENQ\EOT\"\STX\STX\SOH\DC2\EOT\160\ACK\t\SO\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\STX\ETX\DC2\EOT\156\ACK\DC1\DC2\n\
+    \\ENQ\EOT\"\STX\STX\ETX\DC2\EOT\160\ACK\DC1\DC2\n\
     \\f\n\
-    \\EOT\EOT\"\STX\ETX\DC2\EOT\157\ACK\STX\DC4\n\
+    \\EOT\EOT\"\STX\ETX\DC2\EOT\161\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\ETX\ENQ\DC2\EOT\157\ACK\STX\b\n\
+    \\ENQ\EOT\"\STX\ETX\ENQ\DC2\EOT\161\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\ETX\SOH\DC2\EOT\157\ACK\t\SI\n\
+    \\ENQ\EOT\"\STX\ETX\SOH\DC2\EOT\161\ACK\t\SI\n\
     \\r\n\
-    \\ENQ\EOT\"\STX\ETX\ETX\DC2\EOT\157\ACK\DC2\DC3\n\
+    \\ENQ\EOT\"\STX\ETX\ETX\DC2\EOT\161\ACK\DC2\DC3\n\
     \8\n\
-    \\STX\EOT#\DC2\ACK\161\ACK\NUL\171\ACK\SOH\SUB* Mirrors AssetCreateRow (MF/db/types.rs).\n\
+    \\STX\EOT#\DC2\ACK\165\ACK\NUL\175\ACK\SOH\SUB* Mirrors AssetCreateRow (MF/db/types.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT#\SOH\DC2\EOT\161\ACK\b\SYN\n\
+    \\ETX\EOT#\SOH\DC2\EOT\165\ACK\b\SYN\n\
     \\f\n\
-    \\EOT\EOT#\STX\NUL\DC2\EOT\162\ACK\STX\SYN\n\
+    \\EOT\EOT#\STX\NUL\DC2\EOT\166\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT#\STX\NUL\ENQ\DC2\EOT\162\ACK\STX\b\n\
+    \\ENQ\EOT#\STX\NUL\ENQ\DC2\EOT\166\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT#\STX\NUL\SOH\DC2\EOT\162\ACK\t\DC1\n\
+    \\ENQ\EOT#\STX\NUL\SOH\DC2\EOT\166\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT#\STX\NUL\ETX\DC2\EOT\162\ACK\DC4\NAK\n\
+    \\ENQ\EOT#\STX\NUL\ETX\DC2\EOT\166\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT#\STX\SOH\DC2\EOT\163\ACK\STX\ETB\n\
+    \\EOT\EOT#\STX\SOH\DC2\EOT\167\ACK\STX\ETB\n\
     \\r\n\
-    \\ENQ\EOT#\STX\SOH\ENQ\DC2\EOT\163\ACK\STX\a\n\
+    \\ENQ\EOT#\STX\SOH\ENQ\DC2\EOT\167\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT#\STX\SOH\SOH\DC2\EOT\163\ACK\b\DC2\n\
+    \\ENQ\EOT#\STX\SOH\SOH\DC2\EOT\167\ACK\b\DC2\n\
     \\r\n\
-    \\ENQ\EOT#\STX\SOH\ETX\DC2\EOT\163\ACK\NAK\SYN\n\
+    \\ENQ\EOT#\STX\SOH\ETX\DC2\EOT\167\ACK\NAK\SYN\n\
     \\f\n\
-    \\EOT\EOT#\STX\STX\DC2\EOT\164\ACK\STX#\n\
+    \\EOT\EOT#\STX\STX\DC2\EOT\168\ACK\STX#\n\
     \\r\n\
-    \\ENQ\EOT#\STX\STX\ENQ\DC2\EOT\164\ACK\STX\a\n\
+    \\ENQ\EOT#\STX\STX\ENQ\DC2\EOT\168\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT#\STX\STX\SOH\DC2\EOT\164\ACK\b\RS\n\
+    \\ENQ\EOT#\STX\STX\SOH\DC2\EOT\168\ACK\b\RS\n\
     \\r\n\
-    \\ENQ\EOT#\STX\STX\ETX\DC2\EOT\164\ACK!\"\n\
+    \\ENQ\EOT#\STX\STX\ETX\DC2\EOT\168\ACK!\"\n\
     \\f\n\
-    \\EOT\EOT#\STX\ETX\DC2\EOT\165\ACK\STX\SYN\n\
+    \\EOT\EOT#\STX\ETX\DC2\EOT\169\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ETX\ENQ\DC2\EOT\165\ACK\STX\b\n\
+    \\ENQ\EOT#\STX\ETX\ENQ\DC2\EOT\169\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ETX\SOH\DC2\EOT\165\ACK\t\DC1\n\
+    \\ENQ\EOT#\STX\ETX\SOH\DC2\EOT\169\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ETX\ETX\DC2\EOT\165\ACK\DC4\NAK\n\
+    \\ENQ\EOT#\STX\ETX\ETX\DC2\EOT\169\ACK\DC4\NAK\n\
     \R\n\
-    \\EOT\EOT#\STX\EOT\DC2\EOT\167\ACK\STX\SYN\SUBD Rust field is i64 (SQL ::BIGINT cast). Client fails if > i64::MAX.\n\
+    \\EOT\EOT#\STX\EOT\DC2\EOT\171\ACK\STX\SYN\SUBD Rust field is i64 (SQL ::BIGINT cast). Client fails if > i64::MAX.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT#\STX\EOT\ENQ\DC2\EOT\167\ACK\STX\b\n\
+    \\ENQ\EOT#\STX\EOT\ENQ\DC2\EOT\171\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT#\STX\EOT\SOH\DC2\EOT\167\ACK\t\DC1\n\
+    \\ENQ\EOT#\STX\EOT\SOH\DC2\EOT\171\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT#\STX\EOT\ETX\DC2\EOT\167\ACK\DC4\NAK\n\
+    \\ENQ\EOT#\STX\EOT\ETX\DC2\EOT\171\ACK\DC4\NAK\n\
     \#\n\
-    \\EOT\EOT#\STX\ENQ\DC2\EOT\168\ACK\STX\FS\"\NAK tx_out.address text\n\
+    \\EOT\EOT#\STX\ENQ\DC2\EOT\172\ACK\STX\FS\"\NAK tx_out.address text\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ENQ\ENQ\DC2\EOT\168\ACK\STX\b\n\
+    \\ENQ\EOT#\STX\ENQ\ENQ\DC2\EOT\172\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ENQ\SOH\DC2\EOT\168\ACK\t\ETB\n\
+    \\ENQ\EOT#\STX\ENQ\SOH\DC2\EOT\172\ACK\t\ETB\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ENQ\ETX\DC2\EOT\168\ACK\SUB\ESC\n\
+    \\ENQ\EOT#\STX\ENQ\ETX\DC2\EOT\172\ACK\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT#\STX\ACK\DC2\EOT\169\ACK\STX\DC4\n\
+    \\EOT\EOT#\STX\ACK\DC2\EOT\173\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ACK\ENQ\DC2\EOT\169\ACK\STX\a\n\
+    \\ENQ\EOT#\STX\ACK\ENQ\DC2\EOT\173\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ACK\SOH\DC2\EOT\169\ACK\b\SI\n\
+    \\ENQ\EOT#\STX\ACK\SOH\DC2\EOT\173\ACK\b\SI\n\
     \\r\n\
-    \\ENQ\EOT#\STX\ACK\ETX\DC2\EOT\169\ACK\DC2\DC3\n\
+    \\ENQ\EOT#\STX\ACK\ETX\DC2\EOT\173\ACK\DC2\DC3\n\
     \\f\n\
-    \\EOT\EOT#\STX\a\DC2\EOT\170\ACK\STX\CAN\n\
+    \\EOT\EOT#\STX\a\DC2\EOT\174\ACK\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT#\STX\a\ENQ\DC2\EOT\170\ACK\STX\b\n\
+    \\ENQ\EOT#\STX\a\ENQ\DC2\EOT\174\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT#\STX\a\SOH\DC2\EOT\170\ACK\t\DC3\n\
+    \\ENQ\EOT#\STX\a\SOH\DC2\EOT\174\ACK\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT#\STX\a\ETX\DC2\EOT\170\ACK\SYN\ETB\n\
+    \\ENQ\EOT#\STX\a\ETX\DC2\EOT\174\ACK\SYN\ETB\n\
     \\f\n\
-    \\STX\EOT$\DC2\ACK\173\ACK\NUL\178\ACK\SOH\n\
+    \\STX\EOT$\DC2\ACK\177\ACK\NUL\182\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT$\SOH\DC2\EOT\173\ACK\b\GS\n\
+    \\ETX\EOT$\SOH\DC2\EOT\177\ACK\b\GS\n\
     \%\n\
-    \\EOT\EOT$\STX\NUL\DC2\EOT\174\ACK\STX\DC4\"\ETB cNIGHT (policy, name)\n\
+    \\EOT\EOT$\STX\NUL\DC2\EOT\178\ACK\STX\DC4\"\ETB cNIGHT (policy, name)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT$\STX\NUL\ACK\DC2\EOT\174\ACK\STX\t\n\
+    \\ENQ\EOT$\STX\NUL\ACK\DC2\EOT\178\ACK\STX\t\n\
     \\r\n\
-    \\ENQ\EOT$\STX\NUL\SOH\DC2\EOT\174\ACK\n\
+    \\ENQ\EOT$\STX\NUL\SOH\DC2\EOT\178\ACK\n\
     \\SI\n\
     \\r\n\
-    \\ENQ\EOT$\STX\NUL\ETX\DC2\EOT\174\ACK\DC2\DC3\n\
+    \\ENQ\EOT$\STX\NUL\ETX\DC2\EOT\178\ACK\DC2\DC3\n\
     \$\n\
-    \\EOT\EOT$\STX\SOH\DC2\EOT\175\ACK\STX\FS\"\SYN spending tx position\n\
+    \\EOT\EOT$\STX\SOH\DC2\EOT\179\ACK\STX\FS\"\SYN spending tx position\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT$\STX\SOH\ACK\DC2\EOT\175\ACK\STX\DLE\n\
+    \\ENQ\EOT$\STX\SOH\ACK\DC2\EOT\179\ACK\STX\DLE\n\
     \\r\n\
-    \\ENQ\EOT$\STX\SOH\SOH\DC2\EOT\175\ACK\DC1\ETB\n\
+    \\ENQ\EOT$\STX\SOH\SOH\DC2\EOT\179\ACK\DC1\ETB\n\
     \\r\n\
-    \\ENQ\EOT$\STX\SOH\ETX\DC2\EOT\175\ACK\SUB\ESC\n\
+    \\ENQ\EOT$\STX\SOH\ETX\DC2\EOT\179\ACK\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT$\STX\STX\DC2\EOT\176\ACK\STX\DC3\n\
+    \\EOT\EOT$\STX\STX\DC2\EOT\180\ACK\STX\DC3\n\
     \\r\n\
-    \\ENQ\EOT$\STX\STX\ENQ\DC2\EOT\176\ACK\STX\b\n\
+    \\ENQ\EOT$\STX\STX\ENQ\DC2\EOT\180\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT$\STX\STX\SOH\DC2\EOT\176\ACK\t\SO\n\
+    \\ENQ\EOT$\STX\STX\SOH\DC2\EOT\180\ACK\t\SO\n\
     \\r\n\
-    \\ENQ\EOT$\STX\STX\ETX\DC2\EOT\176\ACK\DC1\DC2\n\
+    \\ENQ\EOT$\STX\STX\ETX\DC2\EOT\180\ACK\DC1\DC2\n\
     \\f\n\
-    \\EOT\EOT$\STX\ETX\DC2\EOT\177\ACK\STX\DC4\n\
+    \\EOT\EOT$\STX\ETX\DC2\EOT\181\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT$\STX\ETX\ENQ\DC2\EOT\177\ACK\STX\b\n\
+    \\ENQ\EOT$\STX\ETX\ENQ\DC2\EOT\181\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT$\STX\ETX\SOH\DC2\EOT\177\ACK\t\SI\n\
+    \\ENQ\EOT$\STX\ETX\SOH\DC2\EOT\181\ACK\t\SI\n\
     \\r\n\
-    \\ENQ\EOT$\STX\ETX\ETX\DC2\EOT\177\ACK\DC2\DC3\n\
+    \\ENQ\EOT$\STX\ETX\ETX\DC2\EOT\181\ACK\DC2\DC3\n\
     \7\n\
-    \\STX\EOT%\DC2\ACK\181\ACK\NUL\191\ACK\SOH\SUB) Mirrors AssetSpendRow (MF/db/types.rs).\n\
+    \\STX\EOT%\DC2\ACK\185\ACK\NUL\195\ACK\SOH\SUB) Mirrors AssetSpendRow (MF/db/types.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT%\SOH\DC2\EOT\181\ACK\b\NAK\n\
+    \\ETX\EOT%\SOH\DC2\EOT\185\ACK\b\NAK\n\
     \\RS\n\
-    \\EOT\EOT%\STX\NUL\DC2\EOT\182\ACK\STX\SYN\"\DLE spending block\n\
+    \\EOT\EOT%\STX\NUL\DC2\EOT\186\ACK\STX\SYN\"\DLE spending block\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT%\STX\NUL\ENQ\DC2\EOT\182\ACK\STX\b\n\
+    \\ENQ\EOT%\STX\NUL\ENQ\DC2\EOT\186\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT%\STX\NUL\SOH\DC2\EOT\182\ACK\t\DC1\n\
+    \\ENQ\EOT%\STX\NUL\SOH\DC2\EOT\186\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT%\STX\NUL\ETX\DC2\EOT\182\ACK\DC4\NAK\n\
+    \\ENQ\EOT%\STX\NUL\ETX\DC2\EOT\186\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT%\STX\SOH\DC2\EOT\183\ACK\STX\ETB\n\
+    \\EOT\EOT%\STX\SOH\DC2\EOT\187\ACK\STX\ETB\n\
     \\r\n\
-    \\ENQ\EOT%\STX\SOH\ENQ\DC2\EOT\183\ACK\STX\a\n\
+    \\ENQ\EOT%\STX\SOH\ENQ\DC2\EOT\187\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT%\STX\SOH\SOH\DC2\EOT\183\ACK\b\DC2\n\
+    \\ENQ\EOT%\STX\SOH\SOH\DC2\EOT\187\ACK\b\DC2\n\
     \\r\n\
-    \\ENQ\EOT%\STX\SOH\ETX\DC2\EOT\183\ACK\NAK\SYN\n\
+    \\ENQ\EOT%\STX\SOH\ETX\DC2\EOT\187\ACK\NAK\SYN\n\
     \\f\n\
-    \\EOT\EOT%\STX\STX\DC2\EOT\184\ACK\STX#\n\
+    \\EOT\EOT%\STX\STX\DC2\EOT\188\ACK\STX#\n\
     \\r\n\
-    \\ENQ\EOT%\STX\STX\ENQ\DC2\EOT\184\ACK\STX\a\n\
+    \\ENQ\EOT%\STX\STX\ENQ\DC2\EOT\188\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT%\STX\STX\SOH\DC2\EOT\184\ACK\b\RS\n\
+    \\ENQ\EOT%\STX\STX\SOH\DC2\EOT\188\ACK\b\RS\n\
     \\r\n\
-    \\ENQ\EOT%\STX\STX\ETX\DC2\EOT\184\ACK!\"\n\
+    \\ENQ\EOT%\STX\STX\ETX\DC2\EOT\188\ACK!\"\n\
     \*\n\
-    \\EOT\EOT%\STX\ETX\DC2\EOT\185\ACK\STX\SYN\"\FS spending tx index in block\n\
+    \\EOT\EOT%\STX\ETX\DC2\EOT\189\ACK\STX\SYN\"\FS spending tx index in block\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ETX\ENQ\DC2\EOT\185\ACK\STX\b\n\
+    \\ENQ\EOT%\STX\ETX\ENQ\DC2\EOT\189\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ETX\SOH\DC2\EOT\185\ACK\t\DC1\n\
+    \\ENQ\EOT%\STX\ETX\SOH\DC2\EOT\189\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ETX\ETX\DC2\EOT\185\ACK\DC4\NAK\n\
+    \\ENQ\EOT%\STX\ETX\ETX\DC2\EOT\189\ACK\DC4\NAK\n\
     \4\n\
-    \\EOT\EOT%\STX\EOT\DC2\EOT\186\ACK\STX\SYN\"& spent output's quantity; i64 in Rust\n\
+    \\EOT\EOT%\STX\EOT\DC2\EOT\190\ACK\STX\SYN\"& spent output's quantity; i64 in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT%\STX\EOT\ENQ\DC2\EOT\186\ACK\STX\b\n\
+    \\ENQ\EOT%\STX\EOT\ENQ\DC2\EOT\190\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT%\STX\EOT\SOH\DC2\EOT\186\ACK\t\DC1\n\
+    \\ENQ\EOT%\STX\EOT\SOH\DC2\EOT\190\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT%\STX\EOT\ETX\DC2\EOT\186\ACK\DC4\NAK\n\
+    \\ENQ\EOT%\STX\EOT\ETX\DC2\EOT\190\ACK\DC4\NAK\n\
     \+\n\
-    \\EOT\EOT%\STX\ENQ\DC2\EOT\187\ACK\STX\FS\"\GS spent output's address text\n\
+    \\EOT\EOT%\STX\ENQ\DC2\EOT\191\ACK\STX\FS\"\GS spent output's address text\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ENQ\ENQ\DC2\EOT\187\ACK\STX\b\n\
+    \\ENQ\EOT%\STX\ENQ\ENQ\DC2\EOT\191\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ENQ\SOH\DC2\EOT\187\ACK\t\ETB\n\
+    \\ENQ\EOT%\STX\ENQ\SOH\DC2\EOT\191\ACK\t\ETB\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ENQ\ETX\DC2\EOT\187\ACK\SUB\ESC\n\
+    \\ENQ\EOT%\STX\ENQ\ETX\DC2\EOT\191\ACK\SUB\ESC\n\
     \\f\n\
-    \\EOT\EOT%\STX\ACK\DC2\EOT\188\ACK\STX\EM\n\
+    \\EOT\EOT%\STX\ACK\DC2\EOT\192\ACK\STX\EM\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ACK\ENQ\DC2\EOT\188\ACK\STX\a\n\
+    \\ENQ\EOT%\STX\ACK\ENQ\DC2\EOT\192\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ACK\SOH\DC2\EOT\188\ACK\b\DC4\n\
+    \\ENQ\EOT%\STX\ACK\SOH\DC2\EOT\192\ACK\b\DC4\n\
     \\r\n\
-    \\ENQ\EOT%\STX\ACK\ETX\DC2\EOT\188\ACK\ETB\CAN\n\
+    \\ENQ\EOT%\STX\ACK\ETX\DC2\EOT\192\ACK\ETB\CAN\n\
     \\f\n\
-    \\EOT\EOT%\STX\a\DC2\EOT\189\ACK\STX\CAN\n\
+    \\EOT\EOT%\STX\a\DC2\EOT\193\ACK\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT%\STX\a\ENQ\DC2\EOT\189\ACK\STX\b\n\
+    \\ENQ\EOT%\STX\a\ENQ\DC2\EOT\193\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT%\STX\a\SOH\DC2\EOT\189\ACK\t\DC3\n\
+    \\ENQ\EOT%\STX\a\SOH\DC2\EOT\193\ACK\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT%\STX\a\ETX\DC2\EOT\189\ACK\SYN\ETB\n\
+    \\ENQ\EOT%\STX\a\ETX\DC2\EOT\193\ACK\SYN\ETB\n\
     \\f\n\
-    \\EOT\EOT%\STX\b\DC2\EOT\190\ACK\STX\GS\n\
+    \\EOT\EOT%\STX\b\DC2\EOT\194\ACK\STX\GS\n\
     \\r\n\
-    \\ENQ\EOT%\STX\b\ENQ\DC2\EOT\190\ACK\STX\a\n\
+    \\ENQ\EOT%\STX\b\ENQ\DC2\EOT\194\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT%\STX\b\SOH\DC2\EOT\190\ACK\b\CAN\n\
+    \\ENQ\EOT%\STX\b\SOH\DC2\EOT\194\ACK\b\CAN\n\
     \\r\n\
-    \\ENQ\EOT%\STX\b\ETX\DC2\EOT\190\ACK\ESC\FS\n\
+    \\ENQ\EOT%\STX\b\ETX\DC2\EOT\194\ACK\ESC\FS\n\
     \\f\n\
-    \\STX\EOT&\DC2\ACK\193\ACK\NUL\195\ACK\SOH\n\
+    \\STX\EOT&\DC2\ACK\197\ACK\NUL\199\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT&\SOH\DC2\EOT\193\ACK\b\ESC\n\
+    \\ETX\EOT&\SOH\DC2\EOT\197\ACK\b\ESC\n\
     \\f\n\
-    \\EOT\EOT&\STX\NUL\DC2\EOT\194\ACK\STX\SYN\n\
+    \\EOT\EOT&\STX\NUL\DC2\EOT\198\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT&\STX\NUL\ENQ\DC2\EOT\194\ACK\STX\b\n\
+    \\ENQ\EOT&\STX\NUL\ENQ\DC2\EOT\198\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT&\STX\NUL\SOH\DC2\EOT\194\ACK\t\DC1\n\
+    \\ENQ\EOT&\STX\NUL\SOH\DC2\EOT\198\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT&\STX\NUL\ETX\DC2\EOT\194\ACK\DC4\NAK\n\
+    \\ENQ\EOT&\STX\NUL\ETX\DC2\EOT\198\ACK\DC4\NAK\n\
     \\f\n\
-    \\STX\EOT'\DC2\ACK\197\ACK\NUL\200\ACK\SOH\n\
+    \\STX\EOT'\DC2\ACK\201\ACK\NUL\204\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT'\SOH\DC2\EOT\197\ACK\b\FS\n\
+    \\ETX\EOT'\SOH\DC2\EOT\201\ACK\b\FS\n\
     \-\n\
-    \\EOT\EOT'\STX\NUL\DC2\EOT\199\ACK\STX\"\SUB\US Bytes. Rust type Option<i64>.\n\
+    \\EOT\EOT'\STX\NUL\DC2\EOT\203\ACK\STX\"\SUB\US Bytes. Rust type Option<i64>.\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT'\STX\NUL\EOT\DC2\EOT\199\ACK\STX\n\
+    \\ENQ\EOT'\STX\NUL\EOT\DC2\EOT\203\ACK\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT'\STX\NUL\ENQ\DC2\EOT\199\ACK\v\DC1\n\
+    \\ENQ\EOT'\STX\NUL\ENQ\DC2\EOT\203\ACK\v\DC1\n\
     \\r\n\
-    \\ENQ\EOT'\STX\NUL\SOH\DC2\EOT\199\ACK\DC2\GS\n\
+    \\ENQ\EOT'\STX\NUL\SOH\DC2\EOT\203\ACK\DC2\GS\n\
     \\r\n\
-    \\ENQ\EOT'\STX\NUL\ETX\DC2\EOT\199\ACK !\n\
+    \\ENQ\EOT'\STX\NUL\ETX\DC2\EOT\203\ACK !\n\
     \\198\SOH\n\
-    \\STX\EOT(\DC2\ACK\206\ACK\NUL\210\ACK\SOH2\183\SOH =========================================================================\n\
+    \\STX\EOT(\DC2\ACK\210\ACK\NUL\214\ACK\SOH2\183\SOH =========================================================================\n\
     \ Federated authority observation\n\
     \ =========================================================================\n\
     \\n\
     \\v\n\
-    \\ETX\EOT(\SOH\DC2\EOT\206\ACK\b(\n\
+    \\ETX\EOT(\SOH\DC2\EOT\210\ACK\b(\n\
     \F\n\
-    \\EOT\EOT(\STX\NUL\DC2\EOT\207\ACK\STX\NAK\"8 council or technical committee address (text equality)\n\
+    \\EOT\EOT(\STX\NUL\DC2\EOT\211\ACK\STX\NAK\"8 council or technical committee address (text equality)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT(\STX\NUL\ENQ\DC2\EOT\207\ACK\STX\b\n\
+    \\ENQ\EOT(\STX\NUL\ENQ\DC2\EOT\211\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT(\STX\NUL\SOH\DC2\EOT\207\ACK\t\DLE\n\
+    \\ENQ\EOT(\STX\NUL\SOH\DC2\EOT\211\ACK\t\DLE\n\
     \\r\n\
-    \\ENQ\EOT(\STX\NUL\ETX\DC2\EOT\207\ACK\DC3\DC4\n\
+    \\ENQ\EOT(\STX\NUL\ETX\DC2\EOT\211\ACK\DC3\DC4\n\
     \?\n\
-    \\EOT\EOT(\STX\SOH\DC2\EOT\208\ACK\STX\SYN\"1 28 bytes; any asset name of this policy matches\n\
+    \\EOT\EOT(\STX\SOH\DC2\EOT\212\ACK\STX\SYN\"1 28 bytes; any asset name of this policy matches\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT(\STX\SOH\ENQ\DC2\EOT\208\ACK\STX\a\n\
+    \\ENQ\EOT(\STX\SOH\ENQ\DC2\EOT\212\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT(\STX\SOH\SOH\DC2\EOT\208\ACK\b\DC1\n\
+    \\ENQ\EOT(\STX\SOH\SOH\DC2\EOT\212\ACK\b\DC1\n\
     \\r\n\
-    \\ENQ\EOT(\STX\SOH\ETX\DC2\EOT\208\ACK\DC4\NAK\n\
+    \\ENQ\EOT(\STX\SOH\ETX\DC2\EOT\212\ACK\DC4\NAK\n\
     \7\n\
-    \\EOT\EOT(\STX\STX\DC2\EOT\209\ACK\STX\SYN\") created at block_no <= this (inclusive)\n\
+    \\EOT\EOT(\STX\STX\DC2\EOT\213\ACK\STX\SYN\") created at block_no <= this (inclusive)\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT(\STX\STX\ENQ\DC2\EOT\209\ACK\STX\b\n\
+    \\ENQ\EOT(\STX\STX\ENQ\DC2\EOT\213\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT(\STX\STX\SOH\DC2\EOT\209\ACK\t\DC1\n\
+    \\ENQ\EOT(\STX\STX\SOH\DC2\EOT\213\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT(\STX\STX\ETX\DC2\EOT\209\ACK\DC4\NAK\n\
+    \\ENQ\EOT(\STX\STX\ETX\DC2\EOT\213\ACK\DC4\NAK\n\
     \?\n\
-    \\STX\EOT)\DC2\ACK\213\ACK\NUL\220\ACK\SOH\SUB1 Mirrors GovernanceBodyUtxoRow (MF/db/types.rs).\n\
+    \\STX\EOT)\DC2\ACK\217\ACK\NUL\224\ACK\SOH\SUB1 Mirrors GovernanceBodyUtxoRow (MF/db/types.rs).\n\
     \\n\
     \\v\n\
-    \\ETX\EOT)\SOH\DC2\EOT\213\ACK\b\CAN\n\
+    \\ETX\EOT)\SOH\DC2\EOT\217\ACK\b\CAN\n\
     \?\n\
-    \\EOT\EOT)\STX\NUL\DC2\EOT\214\ACK\STX\DC2\"1 always set (INNER JOIN); strict DbDatum in Rust\n\
+    \\EOT\EOT)\STX\NUL\DC2\EOT\218\ACK\STX\DC2\"1 always set (INNER JOIN); strict DbDatum in Rust\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT)\STX\NUL\ACK\DC2\EOT\214\ACK\STX\a\n\
+    \\ENQ\EOT)\STX\NUL\ACK\DC2\EOT\218\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT)\STX\NUL\SOH\DC2\EOT\214\ACK\b\r\n\
+    \\ENQ\EOT)\STX\NUL\SOH\DC2\EOT\218\ACK\b\r\n\
     \\r\n\
-    \\ENQ\EOT)\STX\NUL\ETX\DC2\EOT\214\ACK\DLE\DC1\n\
+    \\ENQ\EOT)\STX\NUL\ETX\DC2\EOT\218\ACK\DLE\DC1\n\
     \\f\n\
-    \\EOT\EOT)\STX\SOH\DC2\EOT\215\ACK\STX\SYN\n\
+    \\EOT\EOT)\STX\SOH\DC2\EOT\219\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT)\STX\SOH\ENQ\DC2\EOT\215\ACK\STX\b\n\
+    \\ENQ\EOT)\STX\SOH\ENQ\DC2\EOT\219\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT)\STX\SOH\SOH\DC2\EOT\215\ACK\t\DC1\n\
+    \\ENQ\EOT)\STX\SOH\SOH\DC2\EOT\219\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT)\STX\SOH\ETX\DC2\EOT\215\ACK\DC4\NAK\n\
+    \\ENQ\EOT)\STX\SOH\ETX\DC2\EOT\219\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT)\STX\STX\DC2\EOT\216\ACK\STX\ETB\n\
+    \\EOT\EOT)\STX\STX\DC2\EOT\220\ACK\STX\ETB\n\
     \\r\n\
-    \\ENQ\EOT)\STX\STX\ENQ\DC2\EOT\216\ACK\STX\a\n\
+    \\ENQ\EOT)\STX\STX\ENQ\DC2\EOT\220\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT)\STX\STX\SOH\DC2\EOT\216\ACK\b\DC2\n\
+    \\ENQ\EOT)\STX\STX\SOH\DC2\EOT\220\ACK\b\DC2\n\
     \\r\n\
-    \\ENQ\EOT)\STX\STX\ETX\DC2\EOT\216\ACK\NAK\SYN\n\
+    \\ENQ\EOT)\STX\STX\ETX\DC2\EOT\220\ACK\NAK\SYN\n\
     \\f\n\
-    \\EOT\EOT)\STX\ETX\DC2\EOT\217\ACK\STX\SYN\n\
+    \\EOT\EOT)\STX\ETX\DC2\EOT\221\ACK\STX\SYN\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ETX\ENQ\DC2\EOT\217\ACK\STX\b\n\
+    \\ENQ\EOT)\STX\ETX\ENQ\DC2\EOT\221\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ETX\SOH\DC2\EOT\217\ACK\t\DC1\n\
+    \\ENQ\EOT)\STX\ETX\SOH\DC2\EOT\221\ACK\t\DC1\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ETX\ETX\DC2\EOT\217\ACK\DC4\NAK\n\
+    \\ENQ\EOT)\STX\ETX\ETX\DC2\EOT\221\ACK\DC4\NAK\n\
     \\f\n\
-    \\EOT\EOT)\STX\EOT\DC2\EOT\218\ACK\STX\DC4\n\
+    \\EOT\EOT)\STX\EOT\DC2\EOT\222\ACK\STX\DC4\n\
     \\r\n\
-    \\ENQ\EOT)\STX\EOT\ENQ\DC2\EOT\218\ACK\STX\a\n\
+    \\ENQ\EOT)\STX\EOT\ENQ\DC2\EOT\222\ACK\STX\a\n\
     \\r\n\
-    \\ENQ\EOT)\STX\EOT\SOH\DC2\EOT\218\ACK\b\SI\n\
+    \\ENQ\EOT)\STX\EOT\SOH\DC2\EOT\222\ACK\b\SI\n\
     \\r\n\
-    \\ENQ\EOT)\STX\EOT\ETX\DC2\EOT\218\ACK\DC2\DC3\n\
+    \\ENQ\EOT)\STX\EOT\ETX\DC2\EOT\222\ACK\DC2\DC3\n\
     \\f\n\
-    \\EOT\EOT)\STX\ENQ\DC2\EOT\219\ACK\STX\CAN\n\
+    \\EOT\EOT)\STX\ENQ\DC2\EOT\223\ACK\STX\CAN\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ENQ\ENQ\DC2\EOT\219\ACK\STX\b\n\
+    \\ENQ\EOT)\STX\ENQ\ENQ\DC2\EOT\223\ACK\STX\b\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ENQ\SOH\DC2\EOT\219\ACK\t\DC3\n\
+    \\ENQ\EOT)\STX\ENQ\SOH\DC2\EOT\223\ACK\t\DC3\n\
     \\r\n\
-    \\ENQ\EOT)\STX\ENQ\ETX\DC2\EOT\219\ACK\SYN\ETB\n\
+    \\ENQ\EOT)\STX\ENQ\ETX\DC2\EOT\223\ACK\SYN\ETB\n\
     \\f\n\
-    \\STX\EOT*\DC2\ACK\222\ACK\NUL\224\ACK\SOH\n\
+    \\STX\EOT*\DC2\ACK\226\ACK\NUL\228\ACK\SOH\n\
     \\v\n\
-    \\ETX\EOT*\SOH\DC2\EOT\222\ACK\b)\n\
+    \\ETX\EOT*\SOH\DC2\EOT\226\ACK\b)\n\
     \\f\n\
-    \\EOT\EOT*\STX\NUL\DC2\EOT\223\ACK\STX'\n\
+    \\EOT\EOT*\STX\NUL\DC2\EOT\227\ACK\STX'\n\
     \\r\n\
-    \\ENQ\EOT*\STX\NUL\EOT\DC2\EOT\223\ACK\STX\n\
+    \\ENQ\EOT*\STX\NUL\EOT\DC2\EOT\227\ACK\STX\n\
     \\n\
     \\r\n\
-    \\ENQ\EOT*\STX\NUL\ACK\DC2\EOT\223\ACK\v\ESC\n\
+    \\ENQ\EOT*\STX\NUL\ACK\DC2\EOT\227\ACK\v\ESC\n\
     \\r\n\
-    \\ENQ\EOT*\STX\NUL\SOH\DC2\EOT\223\ACK\FS\"\n\
+    \\ENQ\EOT*\STX\NUL\SOH\DC2\EOT\227\ACK\FS\"\n\
     \\r\n\
-    \\ENQ\EOT*\STX\NUL\ETX\DC2\EOT\223\ACK%&b\ACKproto3"
+    \\ENQ\EOT*\STX\NUL\ETX\DC2\EOT\227\ACK%&b\ACKproto3"

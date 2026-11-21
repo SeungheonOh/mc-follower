@@ -579,8 +579,12 @@ message GetStatusResponse {
   // Security parameter k the indexer uses for its own rollback window.
   uint32 security_parameter = 3;
   // True while the indexer is behind its upstream (initial sync, catch-up
-  // after reconnect), or while any backfill is in progress. Always false
-  // for a server that does not sync itself.
+  // after reconnect), or while any backfill is in progress. Behind means no
+  // upstream tip reported yet, nothing indexed, or the tip more than 5
+  // blocks below the upstream tip: node-to-node chain-sync announces the
+  // tip before the block bodies arrive, so a following indexer is routinely
+  // a few blocks behind it. Always false for a server that does not sync
+  // itself. The raw lag is upstream_tip_block_no minus tip.block_no.
   bool syncing = 4;
   // Upstream tip as last reported by chain-sync (slot and block number), for
   // lag reporting. Absent before the first chain-sync exchange.

@@ -267,7 +267,8 @@ withinTip Q.BlockInfo {biNumber} what n =
 -- holds, the latest matching row up to its tip, and the node relies on
 -- that (an RPC may ask for an epoch far in the future). The index answers
 -- the same when it is caught up ('caughtUp'): its blocks are then those
--- of a synced db-sync. While it is behind, the answer would be a stale
+-- of a synced db-sync, which is itself a block or so behind its node
+-- ('upstreamLagTolerance'). While it is behind, the answer would be a stale
 -- view of the tip's epoch, so it is refused like a bound beyond the tip.
 -- The node's committee selection asks for the data epoch, two epochs
 -- before the one in use, which is complete in normal operation.
@@ -300,15 +301,24 @@ caughtUp Env {envConfig = ServerConfig {svSyncStatus, svEpochData}} tip = do
     [] -> Nothing
     reasons -> Just (Text.intercalate "; " reasons)
 
+-- | How many blocks the indexed tip may be below the upstream tip while
+-- the index still counts as caught up (@GetStatus@ @syncing = false@).
+--
+-- Node-to-node chain-sync announces the upstream tip with each header,
+-- before the block bodies arrive, and bodies arrive in small batches, so a
+-- following index is routinely a block or a few behind the tip it was
+-- told about. A synced db-sync is likewise a block or so behind its node
+-- and still answers; within this lag the index answers as it would.
+upstreamLagTolerance :: Word64
+upstreamLagTolerance = 5
+
 -- | Why @GetStatus@ reports @syncing@, given the indexed tip: empty when it
 -- reports @syncing = false@.
 --
 -- * Behind the upstream: the process follows the chain and either no
 --   upstream tip has been reported by chain-sync yet, nothing is indexed,
---   or the indexed tip's block number is below the upstream tip's. (The
---   sync loop reports the upstream tip after storing the block that came
---   with it, so a tip at the upstream's block number holds every block the
---   upstream had announced.)
+--   or the indexed tip's block number is more than 'upstreamLagTolerance'
+--   blocks below the upstream tip's.
 -- * Stake distributions in the backfill window still being obtained.
 syncingReasons :: SyncStatus -> EpochHealth -> Maybe Q.BlockInfo -> [Text]
 syncingReasons SyncStatus {ssFollowing, ssUpstreamTip} EpochHealth {ehMissingStake} tip =
@@ -320,7 +330,7 @@ syncingReasons SyncStatus {ssFollowing, ssUpstreamTip} EpochHealth {ehMissingSta
         (Nothing, _) -> ["no upstream tip has been reported yet"]
         (_, Nothing) -> ["no block is indexed yet"]
         (Just up, Just Q.BlockInfo {biNumber})
-          | fromIntegral biNumber < utBlockNo up ->
+          | fromIntegral biNumber + upstreamLagTolerance < utBlockNo up ->
               ["the index ends at block " <> showText biNumber <> ", the upstream tip is block " <> showText (utBlockNo up)]
           | otherwise -> []
 

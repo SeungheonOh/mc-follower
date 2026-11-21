@@ -216,6 +216,12 @@ tests =
           (s' ^. #syncing, s' ^. #maybe'upstreamTipSlot, s' ^. #maybe'upstreamTipBlockNo) @?= (True, Just 200, Just 20)
           writeIORef status (SyncStatus True (Just (UpstreamTip 120 12)))
           (^. #syncing) <$> get >>= (@?= False)
+          -- Up to five blocks behind the upstream tip still counts as caught
+          -- up; six does not.
+          writeIORef status (SyncStatus True (Just (UpstreamTip 170 17)))
+          (^. #syncing) <$> get >>= (@?= False)
+          writeIORef status (SyncStatus True (Just (UpstreamTip 180 18)))
+          (^. #syncing) <$> get >>= (@?= True)
       , testGroup
           "blocks"
           [ testCase "latest block, with every field" $
@@ -280,6 +286,11 @@ tests =
               refuses (following (UpstreamTip 120 12)) healthy {ehMissingStake = [EpochNo 2]}
               refuses notFollowing healthy
               answers (following (UpstreamTip 200 20)) healthy $ \c -> blockFor c 0 >>= (@?= Just 9)
+              -- Five blocks behind the upstream tip is caught up, six is not.
+              answers (following (UpstreamTip 170 17)) healthy $ \c -> do
+                blockFor c 985571 >>= (@?= Just 12)
+                tokenFor c 985571 >>= (@?= Just (10, 1))
+              refuses (following (UpstreamTip 180 18)) healthy
           , testCase "stake distribution two or more epochs past the tip's: empty when caught up, UNAVAILABLE otherwise" $ do
               (path, _) <- getStore
               let stakeFor c e = map (\r -> (r ^. #poolHash, r ^. #stake)) <$> streamed c (rpc @P.GetStakeDistribution) (defMessage & #epochNo .~ e)
@@ -299,6 +310,9 @@ tests =
               -- Not caught up: refused.
               let refuses status health =
                     answers status health $ \c -> mapM_ (expectCode GrpcUnavailable . stakeFor c) [2, 3, 985571]
+              -- Five blocks behind the upstream tip is caught up, six is not.
+              answers (following (UpstreamTip 170 17)) healthy $ \c -> stakeFor c 985571 >>= (@?= [])
+              refuses (following (UpstreamTip 180 18)) healthy
               refuses (following (UpstreamTip 200 20)) healthy
               refuses (SyncStatus True Nothing) healthy
               refuses (following (UpstreamTip 120 12)) healthy {ehMissingStake = [EpochNo 2]}

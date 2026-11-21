@@ -366,7 +366,10 @@ answered as absent:
 | | the table does not cover the epoch (Byron), or the block is unknown | absent |
 
 `GetStatus` reports the tip, the immutable tip (tip - k), k, the start block,
-the network magic, the upstream tip and whether the indexer is behind it.
+the network magic, the upstream tip and whether the indexer is behind it
+(`syncing`: more than 5 blocks below the upstream tip, or no upstream tip
+yet; node-to-node chain-sync announces the tip before the block bodies
+arrive, so a following indexer is routinely a few blocks behind).
 Stake distributions in the backfill window that are not stored yet are
 listed in `backfilling` as `stake-distribution:epoch:N` (requests for them
 answer `UNAVAILABLE`) and count as `syncing`. The nonce driver's state is
